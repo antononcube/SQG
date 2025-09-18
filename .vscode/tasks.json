@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Health check (wolframscript)",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/scripts/health-check.wls"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Load SQG Euclid suite",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-code",
+        "Get[\"${workspaceFolder}/src/SQG1_euclid.wl\"]; Get[\"${workspaceFolder}/src/SQG2_euclid.wl\"]; Get[\"${workspaceFolder}/src/SQG3_euclid.wl\"]; Print[\"SQG loaded OK\"];"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Run current .wl via wolframscript",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${file}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run tests",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/tests/run-tests.wls"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

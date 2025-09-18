@@ -1,0 +1,10 @@
+# Wolfram caches / notebooks
+*.mx
+*.mx1
+*.m~
+*.nb
+*.nb~
+*.old
+*.bak
+.DS_Store
+*.tmp

@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "*.wl": "wolfram",
+    "*.wls": "wolfram"
+  },
+  "terminal.integrated.inheritEnv": true
+}
