@@ -16,26 +16,26 @@ If[!ValueQ[$SQGZ0],$SQGZ0=1.0];
 
 (*Gaussian Fourier profile*)
 Clear[MakeUProfile];
-MakeUProfile[K_:12,sigma_:0.15,seed_:Automatic] := BlockRandom[
+MakeUProfile[M_:6,K_:12,sigma_:0.15,seed_:Automatic] := BlockRandom[
   Module[{a, b, xi},
-    a = RandomVariate[NormalDistribution[0,sigma],K];
-    b = RandomVariate[NormalDistribution[0,sigma],K];
-    xi = RandomVariate[NormalDistribution[0,sigma]];
-    Function[\[Theta],xi +Sum[a[[k]] Sin[k \[Theta]]+b[[k]] Cos[k \[Theta]],{k,1,K}]]
+    a = RandomVariate[NormalDistribution[0,sigma],{M,K}];
+    b = RandomVariate[NormalDistribution[0,sigma],{M,K}];
+    xi = RandomVariate[NormalDistribution[0,sigma],M];
+    Function[\[Theta],
+    Table[xi[[m]] +Sum[a[[m,k]] Sin[k \[Theta]]+b[[m,k]] Cos[k \[Theta]],{k,1,K}]],{m,M}]
   ],
   RandomSeeding -> seed
 ];
 
-SampleWTrajectory[z_?NumericQ,uFun_,fFun_,s_:+1,nSteps_:512,stabEvery_:16,tol_:$SQGTol,thinStride_,rThinAppendFun_] := 
-Module[{\[Theta]s,d\[Theta],P,u\[Theta],f\[Theta],sol,k,R},
+SampleWTrajectory[z_?NumericQ,fFun_,s_:+1,nSteps_:512,stabEvery_:16,tol_:$SQGTol,thinStride_,rThinAppendFun_] := 
+Module[{\[Theta]s,d\[Theta],P,f\[Theta],sol,k,R},
   \[Theta]s=Subdivide[0.,2 Pi,nSteps-1];d\[Theta]=\[Theta]s[[2]]-\[Theta]s[[1]];
   P=SeedFromZ[z];
   R=RfromP[P,z,s];
   Print["(init) z=",z,", R=",R];
   For[k=1,k<=nSteps,k++,
-    u\[Theta]=uFun[\[Theta]s[[k]]];
-    f\[Theta]=#[\[Theta]s[[k]]]& /@ fFun;
-    sol=StepSDE20[P,u\[Theta],f\[Theta],d\[Theta],stabEvery,k,tol];
+    f\[Theta]= fFun[\[Theta]s[[k]]];
+    sol=StepSDE20[P,f\[Theta],d\[Theta],stabEvery,k,tol];
     P=sol["P"];
     If[Mod[nSteps - k, thinStride] == 0, 
     R = RfromP[P,z,s];
@@ -74,6 +74,7 @@ Clear[RunNewSimulation];
 RunNewSimulation[
       z_?NumericQ,
       nSteps_ : 512,
+      M_ : 7,
       K_ : 12,
       sigma_ : 0.15,
       s_ : 1,
@@ -90,6 +91,7 @@ RunNewSimulation[
   params = <|
     "z" -> z,
     "nSteps" -> nSteps,
+    "M" -> M,
     "K" -> K,
     "sigma" -> sigma,
     "s" -> s,
@@ -110,10 +112,9 @@ RunNewSimulation[
   (* let's do multiple u! *)
   (* ParallelMap[
     Function[seed,
-      Module[{u, f},
-        u = MakeUProfile[K, sigma, seed];
-        f = Table[MakeUProfile[K, sigma, (seed+1)*2027],{k, 6}];
-        SampleWTrajectory[z,u,f,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
+      Module[{f},
+        f = MakeUProfile[M, K, sigma, seed];
+        SampleWTrajectory[z,f,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
         Print["Completed SampleWTrajectory for seed: ", seed, "."];
       ]
     ],
@@ -126,11 +127,11 @@ RunNewSimulation[
   
   (* replaced ParallelMap[...] with a serial Do loop *)
     Do[
-    Module[{u,f},
-      u = MakeUProfile[K, sigma, seed];
-      f = Table[MakeUProfile[K, sigma, (seed+1)*2027],{k, 6}];
-      SampleWTrajectory[z, u,f, s, nSteps, stabEvery, tol, thinStride, rThinAppendFun];
-    ],
+     Module[{f},
+        f = MakeUProfile[M, K, sigma, seed];
+        SampleWTrajectory[z,f,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
+        Print["Completed SampleWTrajectory for seed: ", seed, "."];
+      ],
     {seed, useeds}
     ];
 

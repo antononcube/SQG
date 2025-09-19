@@ -41,7 +41,7 @@ Pmu2x2[P_,\[Mu]_Integer?Positive]:=Sum[tBasis[A]*P[[A,\[Mu]]],{A,1,4}];
 
 (*-----curvature F from P (for Urbantke)-----*)
 Fhat[P_]:=Module[{F=ConstantArray[0.,{3,4,4}],Pm,Pn,comm},Do[Pm=Pmu2x2[P,\[Mu]];Pn=Pmu2x2[P,\[Nu]];comm=Pm . Pn-Pn . Pm;
-Do[F[[i,\[Mu],\[Nu]]]=Re[-I*Tr[pauli[[i]] . comm]];
+Do[F[[i,\[Mu],\[Nu]]]=Im[Tr[pauli[[i]] . comm]];
 F[[i,\[Nu],\[Mu]]]=-F[[i,\[Mu],\[Nu]]],{i,1,3}],{\[Mu],1,4},{\[Nu],\[Mu]+1,4}];
 Developer`ToPackedArray[F]];
 
@@ -112,7 +112,7 @@ InternalProjectors[S_, tol_:$SQGTol] := Module[{vals, vecs, V},
 
 (*-----build 20\[Times]20 (18 duality+metric-free tr\[CapitalOmega],trH)-----*)
 Clear[BuildSystem20];
-BuildSystem20[P_,S_,u_?NumericQ,tol_:$SQGTol]:=Module[{Pnum=N@Chop[P,tol],\[CapitalPi]s,cols,Oe,He,dP,L18,trO,trH,L,b},
+BuildSystem20[P_,S_,tol_:$SQGTol]:=Module[{Pnum=N@Chop[P,tol],\[CapitalPi]s,cols,Oe,He,dP,L18,trO,trH,L},
 \[CapitalPi]s=InternalProjectors[S,tol];
 cols=ConstantArray[0.,{20,18}];
 Do[Oe=ConstantArray[0.,{4,4}];Oe[[ai,bj]]=1.;
@@ -126,9 +126,8 @@ cols[[16+k,;;]]=DualityBlocksFor[Pnum,dP,tol],{k,1,4}];
 L18=Transpose[cols];
 trO=Join[Flatten@IdentityMatrix[4],ConstantArray[0.,4]];
 trH=Join[ConstantArray[0.,16],ConstantArray[1.,4]];
-L=Join[L18,{trO,trH}];
-b=Join[ConstantArray[0.,18],{u,u}];
-{Developer`ToPackedArray[L],Developer`ToPackedArray[b],\[CapitalPi]s}];
+L=Join[L18,{trO-trH}];
+{Developer`ToPackedArray[L],\[CapitalPi]s}];
 
 (*-----optional one-shot step consistency checker-----*)
 Clear[AssertStepConsistency];
@@ -142,9 +141,9 @@ ok];
 (*-----solve 20\[Times]20,single SDE step;enforce P^0 imaginary;assert once-----*)
 If[!ValueQ[$AssertStepOnce],$AssertStepOnce=True];
 Clear[SolveOmegaH20];
-SolveOmegaH20[P_, S0_, u_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
- Module[{L, b, Πs, U, S, V, s, smax, d, Sinv, v, i0, zIdx, fUse},
-  {L, b, Πs} = BuildSystem20[P, S0, u, tol];
+SolveOmegaH20[P_, S0_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
+ Module[{L,  Πs, U, S, V, s, smax, d,  v, i0, zIdx, fUse},
+  {L, Πs} = BuildSystem20[P, S0, tol];
 
   {U, S, V} = SingularValueDecomposition[SetPrecision[L, wp]];
   s    = Diagonal[S];
@@ -153,16 +152,13 @@ SolveOmegaH20[P_, S0_, u_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
 
   (* pseudoinverse diag: nonzeros -> 1/s, zeros -> 0 *)
   d    = If[# > tol*smax, 1./#, 0.] & /@ s;
-  Sinv = DiagonalMatrix[d];
-  v    = V . Sinv . Transpose[U] . SetPrecision[b, wp];   (* least-norm *)
-
   (* indices of zero singulars: tail starting at first zero of d *)
   i0   = FirstPosition[d, 0., Missing["NotFound"]];
   zIdx = If[MissingQ[i0], {}, Range[i0[[1]], Length@d]];
 
   (* match kick length to nullspace dim, or skip if none *)
   fUse = If[zIdx === {}, {}, Take[PadRight[Flatten@{f}, Length@zIdx, 0.], Length@zIdx]];
-  If[fUse =!= {}, v = v + V[[All, zIdx]] . fUse];
+  If[fUse =!= {}, v =  V[[All, zIdx]] . fUse];
 
   <|
     "\[CapitalOmega]" -> ArrayReshape[v[[1 ;; 16]], {4, 4}],
@@ -173,18 +169,18 @@ SolveOmegaH20[P_, S0_, u_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
 
 
 Clear[StepSDE20];
-StepSDE20[P_,u_,f_,d\[Theta]_:1.,stabEvery_:8,stepIndex_:1,tol_:$SQGTol,wp_:$SQGWP]:=
+StepSDE20[P_,f_,d\[Theta]_:1.,stabEvery_:8,stepIndex_:1,tol_:$SQGTol,wp_:$SQGWP]:=
 Module[{S,sol,Om,h,\[CapitalPi]s,Hint,Xi,dP,Pnew,det},
   S=Sgram[P,tol];
-  sol=SolveOmegaH20[P,S,u,f,tol,wp];
+  sol=SolveOmegaH20[P,S,f,tol,wp];
   Om=sol["\[CapitalOmega]"];h=sol["h"];\[CapitalPi]s=sol["\[CapitalPi]s"];
   Hint=Sum[h[[k]] \[CapitalPi]s[[k]],{k,1,4}];(*internal H*)If[$AssertStepOnce&&stepIndex==1,AssertStepConsistency[P,Om,Hint,$SQGTol];$AssertStepOnce=False];
   Xi=XiFrom[P,S,Om,Hint,Automatic];(*internal 4\[Times]4*)dP=Om . P-P . Xi;(*mixed spacetime/internal*)Pnew=P+d\[Theta] dP;
   det=Det[Pnew];
-  Assert[Im[det]>0 && Abs[Re[det]] < 0.1 tol];
+  Assert[Abs[Im[det]] < 0.1 tol];
   Pnew=Pnew/Abs[det]^(1/4);
   (*enforce abelian row purely imaginary*)
-  Pnew[[1,All]]=I Im[Pnew[[1,All]]];
+  Pnew[[1,All]]= Re[Pnew[[1,All]]];
   (*optional:keep non-abelian rows real*)
   (*Pnew[[2;;4,All]]=Re[Pnew[[2;;4,All]]];*)
   <|"P"->Developer`ToPackedArray[Pnew],"\[CapitalOmega]"->Om,"h"->h|>

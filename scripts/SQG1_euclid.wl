@@ -32,7 +32,7 @@ FhatTetradLocal[P_] := Module[{F = ConstantArray[0., {3, 4, 4}], PM, PN, comm},
     PM = Pcol2x2[P, M]; PN = Pcol2x2[P, N];
     comm = PM.PN - PN.PM;
     Do[
-      F[[i, M, N]] = Re[-I Tr[pauli[[i]].comm]];
+      F[[i, M, N]] = Im[Tr[pauli[[i]].comm]];
       F[[i, N, M]] = -F[[i, M, N]],
       {i, 1, 3}
     ],
@@ -70,7 +70,7 @@ SeedFromZ[z_?NumericQ] := Module[{ψ = psiFromZ[z], α, β, P},
   P[[2, 2]] = α;    (* P^1_{r̂} *)
   P[[3, 3]] = β;    (* P^2_{\[Theta]̂} *)
   P[[4, 4]] = β;    (* P^3_{φ̂} *)
-  P[[1, 1]] = I/(α β^2);
+  P[[1, 1]] = 1/(α β^2);
   Developer`ToPackedArray @ N @ P
 ];
 
