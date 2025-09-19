@@ -70,6 +70,7 @@ SeedFromZ[z_?NumericQ] := Module[{ψ = psiFromZ[z], α, β, P},
   P[[2, 2]] = α;    (* P^1_{r̂} *)
   P[[3, 3]] = β;    (* P^2_{\[Theta]̂} *)
   P[[4, 4]] = β;    (* P^3_{φ̂} *)
+  P[[1, 1]] = I/(α β^2);
   Developer`ToPackedArray @ N @ P
 ];
 

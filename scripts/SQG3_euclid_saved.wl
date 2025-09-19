@@ -26,22 +26,17 @@ MakeUProfile[K_:12,sigma_:0.15,seed_:Automatic] := BlockRandom[
   RandomSeeding -> seed
 ];
 
-SampleWTrajectory[z_?NumericQ,uFun_,fFun_,s_:+1,nSteps_:512,stabEvery_:16,tol_:$SQGTol,thinStride_,rThinAppendFun_] := 
-Module[{\[Theta]s,d\[Theta],P,u\[Theta],f\[Theta],sol,k,R},
+SampleWTrajectory[z_?NumericQ,uFun_,s_:+1,nSteps_:512,stabEvery_:16,tol_:$SQGTol,thinStride_,rThinAppendFun_] := 
+Module[{\[Theta]s,d\[Theta],P,u\[Theta],sol,k,R},
   \[Theta]s=Subdivide[0.,2 Pi,nSteps-1];d\[Theta]=\[Theta]s[[2]]-\[Theta]s[[1]];
   P=SeedFromZ[z];
-  R=RfromP[P,z,s];
+  R=RFromP[P,z,s];
   Print["(init) z=",z,", R=",R];
   For[k=1,k<=nSteps,k++,
     u\[Theta]=uFun[\[Theta]s[[k]]];
-    f\[Theta]=#[\[Theta]s[[k]]]& /@ fFun;
-    sol=StepSDE20[P,u\[Theta],f\[Theta],d\[Theta],stabEvery,k,tol];
+    sol=StepSDE20[P,u\[Theta],d\[Theta],stabEvery,k,tol];
     P=sol["P"];
-    If[Mod[nSteps - k, thinStride] == 0, 
-    R = RfromP[P,z,s];
-    Print["k=",k,", R=",R];
-    rThinAppendFun[R]
-    ]
+    If[Mod[nSteps - k, thinStride] == 0, rThinAppendFun[RFromP[P,z,s]]]
   ];
 ];
 
@@ -105,15 +100,14 @@ RunNewSimulation[
   SetSharedVariable[rThinLock];
   rThinFile = FileNameJoin[rundir, "rthin.bin"];
   rThinFileHandle = OpenWrite[rThinFile, BinaryFormat->True]; (* should this be shared? *)
-  rThinAppendFun = Function[r, BinaryWrite[rThinFileHandle, N[r], "Real64"]];
+  rThinAppendFun = Function[r, With[rThinLock, BinaryWrite[rThinFileHandle, N[r], "Real64"]]];
 
   (* let's do multiple u! *)
   (* ParallelMap[
     Function[seed,
-      Module[{u, f},
+      Module[{u},
         u = MakeUProfile[K, sigma, seed];
-        f = Table[MakeUProfile[K, sigma, (seed+1)*2027],{k, 6}];
-        SampleWTrajectory[z,u,f,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
+        SampleWTrajectory[z,u,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
         Print["Completed SampleWTrajectory for seed: ", seed, "."];
       ]
     ],
@@ -126,10 +120,8 @@ RunNewSimulation[
   
   (* replaced ParallelMap[...] with a serial Do loop *)
     Do[
-    Module[{u,f},
-      u = MakeUProfile[K, sigma, seed];
-      f = Table[MakeUProfile[K, sigma, (seed+1)*2027],{k, 6}];
-      SampleWTrajectory[z, u,f, s, nSteps, stabEvery, tol, thinStride, rThinAppendFun];
+    Module[{u = MakeUProfile[K, sigma, seed]},
+        SampleWTrajectory[z, u, s, nSteps, stabEvery, tol, thinStride, rThinAppendFun];
     ],
     {seed, useeds}
     ];
@@ -149,4 +141,4 @@ RunNewSimulation[
 *)
 
 On[Assert];
-RunNewSimulation[0.1^4, 512, 12, 2.5, 1, 15, 10,$SQGTol, {1}]
+RunNewSimulation[1., 512, 12, 2.5, 1, 15, 10,$SQGTol, {1}]

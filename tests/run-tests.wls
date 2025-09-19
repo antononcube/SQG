@@ -1,7 +1,7 @@
 (* load suite *)
-Get[FileNameJoin[{DirectoryName[$InputFileName], "..", "src", "SQG1_euclid.wl"}]];
-Get[FileNameJoin[{DirectoryName[$InputFileName], "..", "src", "SQG2_euclid.wl"}]];
-Get[FileNameJoin[{DirectoryName[$InputFileName], "..", "src", "SQG3_euclid.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "..", "scripts", "SQG1_euclid.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "..", "scripts", "SQG2_euclid.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "..", "scripts", "SQG3_euclid.wl"}]];
 
 (* simple seed check *)
 res = VerifySeedEuclid[10.];

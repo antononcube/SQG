@@ -19,7 +19,7 @@
       "args": [
         "wolframscript",
         "-code",
-        "Get[\"${workspaceFolder}/src/SQG1_euclid.wl\"]; Get[\"${workspaceFolder}/src/SQG2_euclid.wl\"]; Get[\"${workspaceFolder}/src/SQG3_euclid.wl\"]; Print[\"SQG loaded OK\"];"
+        "Get[\"${workspaceFolder}/scripts/SQG1_euclid.wl\"]; Get[\"${workspaceFolder}/scripts/SQG2_euclid.wl\"]; Get[\"${workspaceFolder}/scripts/SQG3_euclid.wl\"]; Print[\"SQG loaded OK\"];"
       ],
       "problemMatcher": []
     },
@@ -47,6 +47,16 @@
         "${workspaceFolder}/tests/run-tests.wls"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "Run SQG3",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/scripts/SQG3_euclid.wl"
+      ]
     }
   ]
 }
