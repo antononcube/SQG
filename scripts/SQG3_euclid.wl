@@ -17,12 +17,12 @@ If[!ValueQ[$SQGZ0],$SQGZ0=1.0];
 (*Gaussian Fourier profile*)
 Clear[MakeUProfile];
 MakeUProfile[M_:6,K_:12,sigma_:0.15,seed_:Automatic] := BlockRandom[
-  Module[{a, b, xi},
+  Module[{a, b, xi, m},
     a = RandomVariate[NormalDistribution[0,sigma],{M,K}];
     b = RandomVariate[NormalDistribution[0,sigma],{M,K}];
     xi = RandomVariate[NormalDistribution[0,sigma],M];
     Function[\[Theta],
-    Table[xi[[m]] +Sum[a[[m,k]] Sin[k \[Theta]]+b[[m,k]] Cos[k \[Theta]],{k,1,K}]],{m,M}]
+    Table[xi[[m]] +Sum[a[[m,k]] Sin[k \[Theta]]+b[[m,k]] Cos[k \[Theta]],{k,1,K}],{m,1,M}]]
   ],
   RandomSeeding -> seed
 ];
@@ -37,6 +37,7 @@ Module[{\[Theta]s,d\[Theta],P,f\[Theta],sol,k,R},
     f\[Theta]= fFun[\[Theta]s[[k]]];
     sol=StepSDE20[P,f\[Theta],d\[Theta],stabEvery,k,tol];
     P=sol["P"];
+    (* Quit[]; *)
     If[Mod[nSteps - k, thinStride] == 0, 
     R = RfromP[P,z,s];
     Print["k=",k,", R=",R];
@@ -45,10 +46,6 @@ Module[{\[Theta]s,d\[Theta],P,f\[Theta],sol,k,R},
   ];
 ];
 
-(* RunOneRealization[z_?NumericQ,nSteps_:512,K_:12,sigma_:0.15,s_:+1,seed_:1,stabEvery_:16,tol_:$SQGTol]:=
-Module[{u=MakeUProfile[K,sigma,seed],W},
-W=SampleWTrajectory[z,u,s,nSteps,stabEvery,tol];
-<|"W"->W|>]; *)
 
 (* NewRunDir, no input, outputs a directory *)
 $RunsDir = "runs";
@@ -74,7 +71,7 @@ Clear[RunNewSimulation];
 RunNewSimulation[
       z_?NumericQ,
       nSteps_ : 512,
-      M_ : 7,
+      M_ : 6,
       K_ : 12,
       sigma_ : 0.15,
       s_ : 1,
@@ -82,7 +79,7 @@ RunNewSimulation[
       thinStride_ : 10,
       tol_ : $SQGTol,
       useeds_ : Range[100]
-    ] := Module[{rundir, params, paramsFile, rThinLock, rThinFile, rThinFileHandle, rThinAppendFun},
+    ] := Module[{rundir, params, paramsFile, rThinFile, rThinLockFile, rThinAppendFun},
 
   rundir = NewRunDir[];
   Print["Run: ", rundir];
@@ -150,4 +147,4 @@ RunNewSimulation[
 *)
 
 On[Assert];
-RunNewSimulation[0.1^4, 512, 7, 12, 2.5, 1, 15, 10,$SQGTol, {1}]
+RunNewSimulation[0.1^4, 512, 6, 12, 2.5, 1, 15, 10,$SQGTol, {1}]

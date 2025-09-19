@@ -148,7 +148,7 @@ SolveOmegaH20[P_, S0_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
   {U, S, V} = SingularValueDecomposition[SetPrecision[L, wp]];
   s    = Diagonal[S];
   smax = Max[s, 0.];
-  Print["after SVD: s=", N[s]];
+  (* Print["after SVD: s=", N[s]]; *)
 
   (* pseudoinverse diag: nonzeros -> 1/s, zeros -> 0 *)
   d    = If[# > tol*smax, 1./#, 0.] & /@ s;
@@ -190,7 +190,7 @@ Module[{S,sol,Om,h,\[CapitalPi]s,Hint,Xi,dP,Pnew,det},
 SafeSqrtSym[X_,tol_:$SQGTol]:=
 Module[{S=Symmetrize[X],vals,vecs,vclip},
 {vals,vecs}=Eigensystem[S];
-Print["x_vals=",vals];
+(* Print["x_vals=",vals]; *)
 vclip=vals/. x_/;x<0&&Abs[x]<tol->0.;
 vecs . DiagonalMatrix[Sqrt[Clip[vclip,{0,\[Infinity]}]]] . Transpose[vecs]];
 
