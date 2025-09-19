@@ -150,4 +150,4 @@ RunNewSimulation[
 *)
 
 On[Assert];
-RunNewSimulation[0.1^4, 512, 12, 2.5, 1, 15, 10,$SQGTol, {1}]
+RunNewSimulation[0.1^4, 512, 7, 12, 2.5, 1, 15, 10,$SQGTol, {1}]
