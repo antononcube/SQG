@@ -60,8 +60,8 @@ UrbantkeMetric[P_, tol_:$SQGTol] := Module[{F, FF1, FF2, FF3, G, d, gDn},
 
 (*-----covariant internal Gram and A(\[CapitalOmega])-----*)
 Clear[Sgram,AfromOmega,Skew];
-Sgram[P_,tol_:$SQGTol]:=Module[{},Developer`ToPackedArray@N@Chop[P . Transpose[P],tol]];
-AfromOmega[P_,Om_,tol_:$SQGTol]:=Module[{},Developer`ToPackedArray@N@Chop[P . Om . Transpose[P],tol]];
+Sgram[P_,tol_:$SQGTol]:= Developer`ToPackedArray@N@Chop[P . Transpose[P],tol];
+AfromOmega[P_,Om_,tol_:$SQGTol]:= Developer`ToPackedArray@N@Chop[P . Om . Transpose[P],tol];
 Skew[M_]:=(M-Transpose[M])/2.;
 
 (*-----stable internal 4\[Times]4 solve for Xi-----*)
@@ -126,7 +126,7 @@ cols[[16+k,;;]]=DualityBlocksFor[Pnum,dP,tol],{k,1,4}];
 L18=Transpose[cols];
 trO=Join[Flatten@IdentityMatrix[4],ConstantArray[0.,4]];
 trH=Join[ConstantArray[0.,16],ConstantArray[1.,4]];
-L=Join[L18,{trO-trH}];
+L=Join[L18,{trO,trH}];
 {Developer`ToPackedArray[L],\[CapitalPi]s}];
 
 (*-----optional one-shot step consistency checker-----*)
@@ -147,18 +147,20 @@ SolveOmegaH20[P_, S0_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
 
   {U, S, V} = SingularValueDecomposition[SetPrecision[L, wp]];
   s    = Diagonal[S];
-  smax = Max[s, 0.];
   (* Print["after SVD: s=", N[s]]; *)
-
   (* pseudoinverse diag: nonzeros -> 1/s, zeros -> 0 *)
+  smax = Max[s, 0.];
   d    = If[# > tol*smax, 1./#, 0.] & /@ s;
   (* indices of zero singulars: tail starting at first zero of d *)
   i0   = FirstPosition[d, 0., Missing["NotFound"]];
   zIdx = If[MissingQ[i0], {}, Range[i0[[1]], Length@d]];
-
+  (* Print["null dim=", Length@zIdx]; *)
   (* match kick length to nullspace dim, or skip if none *)
   fUse = If[zIdx === {}, {}, Take[PadRight[Flatten@{f}, Length@zIdx, 0.], Length@zIdx]];
-  If[fUse =!= {}, v =  V[[All, zIdx]] . fUse];
+  If[fUse =!= {}, 
+  v =  V[[All, zIdx]] . fUse;
+  (* Print["v=", v]; *)
+  ];
 
   <|
     "\[CapitalOmega]" -> ArrayReshape[v[[1 ;; 16]], {4, 4}],
@@ -172,10 +174,16 @@ Clear[StepSDE20];
 StepSDE20[P_,f_,d\[Theta]_:1.,stabEvery_:8,stepIndex_:1,tol_:$SQGTol,wp_:$SQGWP]:=
 Module[{S,sol,Om,h,\[CapitalPi]s,Hint,Xi,dP,Pnew,det},
   S=Sgram[P,tol];
+  (* Print["S=", MatrixForm@S]; *)
   sol=SolveOmegaH20[P,S,f,tol,wp];
   Om=sol["\[CapitalOmega]"];h=sol["h"];\[CapitalPi]s=sol["\[CapitalPi]s"];
-  Hint=Sum[h[[k]] \[CapitalPi]s[[k]],{k,1,4}];(*internal H*)If[$AssertStepOnce&&stepIndex==1,AssertStepConsistency[P,Om,Hint,$SQGTol];$AssertStepOnce=False];
-  Xi=XiFrom[P,S,Om,Hint,Automatic];(*internal 4\[Times]4*)dP=Om . P-P . Xi;(*mixed spacetime/internal*)Pnew=P+d\[Theta] dP;
+  Hint=Sum[h[[k]] \[CapitalPi]s[[k]],{k,1,4}];
+  (*internal H*)If[$AssertStepOnce&&stepIndex==1,AssertStepConsistency[P,Om,Hint,$SQGTol];$AssertStepOnce=False];
+  Xi=XiFrom[P,S,Om,Hint,Automatic];
+  (*internal 4\[Times]4*)dP=Om . P-P . Xi;
+  (* Print["d\[Theta]dP=", MatrixForm@(d\[Theta] dP)]; *)
+  (*mixed spacetime/internal*)
+  Pnew=P+d\[Theta] dP;
   det=Det[Pnew];
   Assert[Abs[Im[det]] < 0.1 tol];
   Pnew=Pnew/Abs[det]^(1/4);

@@ -1,90 +1,120 @@
 (* ::Package:: *)
 
-(* ::Input:: *)
-(* ======================SQG3 . nb====================== *)
-(* Gaussian Fourier u(\[Theta]) held fixed during solve and sampling . *)
-(* ====================================================*)
+(* ====================== SQG3_euclid.wl ====================== *)
+(* Gaussian Fourier forcing sampled along SDE trajectories.       *)
+(* ============================================================ *)
 
-$HistoryLength=0; (* Don't keep Mathematica history. *)
+$HistoryLength = 0; (* Avoid kernel history bloat. *)
 
 (* import SQG1, SQG2 into this file's namespace, as if they were one file *)
-Get[FileNameJoin[DirectoryName[$InputFileName], "SQG1_euclid.wl"]];
-Get[FileNameJoin[DirectoryName[$InputFileName], "SQG2_euclid.wl"]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "SQG1_euclid.wl"}]];
+Get[FileNameJoin[{DirectoryName[$InputFileName], "SQG2_euclid.wl"}]];
 
-If[!ValueQ[$SQGTol],$SQGTol=1.*^-12];
-If[!ValueQ[$SQGZ0],$SQGZ0=1.0];
+If[!ValueQ[$SQGTol], $SQGTol = 1.*^-12];
+If[!ValueQ[$SQGZ0],  $SQGZ0  = 1.0];
 
-(*Gaussian Fourier profile*)
+(* Gaussian Fourier profile generator (vector of length M). *)
 Clear[MakeUProfile];
-MakeUProfile[M_:6,K_:12,sigma_:0.15,seed_:Automatic] := BlockRandom[
-  Module[{a, b, xi, m},
-    a = RandomVariate[NormalDistribution[0,sigma],{M,K}];
-    b = RandomVariate[NormalDistribution[0,sigma],{M,K}];
-    xi = RandomVariate[NormalDistribution[0,sigma],M];
-    Function[\[Theta],
-    Table[xi[[m]] +Sum[a[[m,k]] Sin[k \[Theta]]+b[[m,k]] Cos[k \[Theta]],{k,1,K}],{m,1,M}]]
-  ],
-  RandomSeeding -> seed
-];
-
-SampleWTrajectory[z_?NumericQ,fFun_,s_:+1,nSteps_:512,stabEvery_:16,tol_:$SQGTol,thinStride_,rThinAppendFun_] := 
-Module[{\[Theta]s,d\[Theta],P,f\[Theta],sol,k,R},
-  \[Theta]s=Subdivide[0.,2 Pi,nSteps-1];d\[Theta]=\[Theta]s[[2]]-\[Theta]s[[1]];
-  P=SeedFromZ[z];
-  R=RfromP[P,z,s];
-  Print["(init) z=",z,", R=",R];
-  For[k=1,k<=nSteps,k++,
-    f\[Theta]= fFun[\[Theta]s[[k]]];
-    sol=StepSDE20[P,f\[Theta],d\[Theta],stabEvery,k,tol];
-    P=sol["P"];
-    (* Quit[]; *)
-    If[Mod[nSteps - k, thinStride] == 0, 
-    R = RfromP[P,z,s];
-    Print["k=",k,", R=",R];
-    rThinAppendFun[R]
-    ]
+MakeUProfile[M_: 6, K_: 12, sigma_: 0.15, seed_: Automatic] :=
+  BlockRandom[
+    Module[{a, b, xi},
+      a  = RandomVariate[NormalDistribution[0, sigma], {M, K}];
+      b  = RandomVariate[NormalDistribution[0, sigma], {M, K}];
+      xi = RandomVariate[NormalDistribution[0, sigma], M];
+      Function[
+        θ,
+        Table[
+          xi[[m]] + Sum[a[[m, k]] Sin[k θ] + b[[m, k]] Cos[k θ], {k, 1, K}],
+          {m, 1, M}
+        ]
+      ]
+    ],
+    RandomSeeding -> seed
   ];
-];
+
+(* Trajectory sampler: streams R-values out via user-supplied flush. *)
+Clear[SampleWTrajectory];
+SampleWTrajectory[
+    z_?NumericQ,
+    fFun_,
+    s_: +1,
+    nSteps_: 512,
+    stabEvery_: 16,
+    tol_: $SQGTol,
+    thinStride_: 10,
+    chunkSize_: 10^4,
+    flushFun_: Automatic
+  ] :=
+  Module[{θs, dθ, P, fθ, sol, k, R, stride = thinStride, chunk = chunkSize,
+          buffer = {}, localCollect = {}, flush},
+
+    If[!IntegerQ[stride] || stride <= 0, stride = 1];
+    If[!IntegerQ[chunk]  || chunk  <= 0, chunk  = 10^4];
+
+    flush = If[flushFun === Automatic,
+      Function[list, localCollect = Join[localCollect, list]],
+      flushFun
+    ];
+
+    θs = Subdivide[0., 2 Pi, nSteps - 1];
+    dθ = θs[[2]] - θs[[1]];
+    P  = SeedFromZ[z];
+    R  = RfromP[P, z, s];
+
+    For[k = 1, k <= nSteps, k++,
+      fθ  = fFun[θs[[k]]];
+      sol = StepSDE20[P, fθ, dθ, stabEvery, k, tol];
+      P   = sol["P"];
+
+      If[Mod[nSteps - k, stride] == 0,
+        R = RfromP[P, z, s];
+        AppendTo[buffer, R];
+        If[Length[buffer] >= chunk,
+          flush[buffer];
+          buffer = {};
+        ];
+      ];
+    ];
+
+    If[buffer =!= {}, flush[buffer]];
+
+    If[flushFun === Automatic, localCollect, Null]
+  ];
 
 
-(* NewRunDir, no input, outputs a directory *)
+
+(* Run directory helper. *)
 $RunsDir = "runs";
 Clear[NewRunDir];
-NewRunDir[] := Module[{lock, files, next, path},
-  (* make runs dir if does not exist *)
+NewRunDir[] := Module[{files, indices, next},
   If[Not[DirectoryQ[$RunsDir]], CreateDirectory[$RunsDir]];
-  (* make lock file if doesn't exist *)
-  lock = FileNameJoin[$RunsDir, ".lock"];
-  If[Not[FileQ[lock]], CreateFile[lock]];
-  (* make next run dir safely *)
-  WithLock[File[lock],
-    files = FileNames[RegularExpression["\\d+"], $RunsDir];
-    next = Max[Join[{-1}, Map[Composition[ToExpression, FileNameTake], files]]] + 1;
-    path = FileNameJoin[$RunsDir, IntegerString[next, 10, 4]];
-    CreateDirectory[path]
-  ];
-  (* return path *)
-  path
+  files   = FileNames[RegularExpression["\\d+"], $RunsDir];
+  indices = ToExpression /@ (FileNameTake[#, -1] & /@ files);
+  next    = If[indices === {}, 0, Max[indices] + 1];
+  FileNameJoin[{ $RunsDir, IntegerString[next, 10, 4]}]
 ];
 
+(* Main driver: parallelises over seed list and streams results to disk. *)
 Clear[RunNewSimulation];
 RunNewSimulation[
-      z_?NumericQ,
-      nSteps_ : 512,
-      M_ : 6,
-      K_ : 12,
-      sigma_ : 0.15,
-      s_ : 1,
-      stabEvery_ : 15,
-      thinStride_ : 10,
-      tol_ : $SQGTol,
-      useeds_ : Range[100]
-    ] := Module[{rundir, params, paramsFile, rThinFile, rThinLockFile, rThinAppendFun},
+    z_?NumericQ,
+    nSteps_: 512,
+    M_: 6,
+    K_: 12,
+    sigma_: 0.15,
+    s_: 1,
+    stabEvery_: 15,
+    thinStride_: 10,
+    tol_: $SQGTol,
+    useeds_: Range[100],
+    chunkSize_: 10^4
+  ] := Module[{rundir, params, paramsFile, rThinFile, tempFileForSeed, tempFiles,
+    destHandle},
 
   rundir = NewRunDir[];
+  CreateDirectory[rundir];
   Print["Run: ", rundir];
 
-  paramsFile = FileNameJoin[rundir, "params.txt"];
   params = <|
     "z" -> z,
     "nSteps" -> nSteps,
@@ -93,58 +123,77 @@ RunNewSimulation[
     "sigma" -> sigma,
     "s" -> s,
     "stabEvery" -> stabEvery,
-    "tol" -> tol,
     "thinStride" -> thinStride,
+    "tol" -> tol,
     "useeds" -> useeds
   |>;
+  paramsFile = FileNameJoin[{rundir, "params.txt"}];
   Export[paramsFile, params];
+  Export[FileNameJoin[{rundir, "date_begin.txt"}], Now];
 
-  Export[FileNameJoin[rundir, "date_begin.txt"], Now];
+  rThinFile = FileNameJoin[{rundir, "rthin.bin"}];
+  If[FileExistsQ[rThinFile], DeleteFile[rThinFile]];
 
-  SetSharedVariable[rThinLock];
-  rThinFile = FileNameJoin[rundir, "rthin.bin"];
-  rThinFileHandle = OpenWrite[rThinFile, BinaryFormat->True]; (* should this be shared? *)
-  rThinAppendFun = Function[r, BinaryWrite[rThinFileHandle, N[r], "Real64"]];
+  tempFileForSeed = Function[seed,
+    FileNameJoin[{rundir, "rthin_" <> IntegerString[seed, 10, 4] <> ".bin"}]
+  ];
 
-  (* let's do multiple u! *)
-  (* ParallelMap[
+  DistributeDefinitions[MakeUProfile, SampleWTrajectory, chunkSize, tempFileForSeed];
+
+  ParallelMap[
     Function[seed,
-      Module[{f},
+      Module[{f, tempFile, writer},
+        tempFile = tempFileForSeed[seed];
+        If[FileExistsQ[tempFile], DeleteFile[tempFile]];
         f = MakeUProfile[M, K, sigma, seed];
-        SampleWTrajectory[z,f,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
+        writer = Function[list,
+          If[list === {}, Return[]];
+          Module[{fh = OpenAppend[tempFile, BinaryFormat -> True]},
+            BinaryWrite[fh, Developer`ToPackedArray @ N[list], "Real64"];
+            Close[fh];
+          ];
+        ];
+        SampleWTrajectory[z, f, s, nSteps, stabEvery, tol, thinStride,
+          chunkSize, writer];
         Print["Completed SampleWTrajectory for seed: ", seed, "."];
+        Null
       ]
     ],
     useeds,
     ProgressReporting -> True
   ];
-  Close[rThinFileHandle];
-   *)
 
-  
-  (* replaced ParallelMap[...] with a serial Do loop *)
-    Do[
-     Module[{f},
-        f = MakeUProfile[M, K, sigma, seed];
-        SampleWTrajectory[z,f,s,nSteps,stabEvery,tol,thinStride,rThinAppendFun];
-        Print["Completed SampleWTrajectory for seed: ", seed, "."];
-      ],
-    {seed, useeds}
-    ];
+  destHandle = OpenWrite[rThinFile, BinaryFormat -> True];
+  tempFiles = Table[tempFileForSeed[seed], {seed, useeds}];
+  Scan[
+    Function[file,
+      If[FileExistsQ[file],
+        Module[{fh = OpenRead[file, BinaryFormat -> True]},
+          BinaryWrite[destHandle, BinaryReadList[fh, "Real64"], "Real64"];
+          Close[fh];
+        ];
+        DeleteFile[file];
+      ]
+    ],
+    tempFiles
+  ];
+  Close[destHandle];
 
-
-  Export[FileNameJoin[rundir, "date_end.txt"], Now];
+  Export[FileNameJoin[{rundir, "date_end.txt"}], Now];
 ];
 
-(* Reading data: BinaryReadList["path/to/seed.bin", "Real64"] *)
-(* Reading params: Import["path/to/params.txt"] *)
 
-(* todo:
-  - Use OptionsPattern. https://reference.wolfram.com/language/tutorial/Patterns.html#14984
-  - Fix errors it throws in calculation.
-  - Fix error in writing R.
-  - Better overview of progress.
-*)
-
+(* Demo run parameters (adjust as needed). *)
 On[Assert];
-RunNewSimulation[1000., 512, 6, 12, 0.1, 1, 15, 10,$SQGTol, {1}]
+RunNewSimulation[
+  1.,      (* z *)
+  1024,    (* nSteps *)
+  6,       (* M *)
+  12,      (* K *)
+  1.1,     (* sigma *)
+  1,       (* s *)
+  1,       (* stabEvery *)
+  10,      (* thinStride *)
+  $SQGTol, (* tol *)
+  Range[100]
+];

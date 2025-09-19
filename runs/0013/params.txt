@@ -1,1 +1,0 @@
-<|"z" -> 1000., "nSteps" -> 512, "M" -> 6, "K" -> 12, "sigma" -> 0.1, "s" -> 1, "stabEvery" -> 15, "tol" -> 1.*^-12, "thinStride" -> 10, "useeds" -> {1}|>
