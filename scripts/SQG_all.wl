@@ -356,11 +356,13 @@ LogKernelPool[] := Module[{info},
 
 Clear[EnsureRemoteKernel];
 EnsureRemoteKernel[] := Module[{remoteHost = "100.111.63.24", remoteSpec, info, hasRemote},
-  remoteSpec = RemoteKernel[
-    "amigdal@" <> remoteHost,
-    "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null amigdal@" <> remoteHost <>
-      " '/Applications/Wolfram.app/Contents/MacOS/WolframKernel -noprompt -mathlink -noinit'"
-  ];
+  remoteHost = "mac-a102";
+remoteSpec = RemoteKernel[
+  "amigdal@" <> remoteHost,
+  "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null amigdal@" <> remoteHost <>
+    " '/Applications/Wolfram.app/Contents/MacOS/WolframKernel -noprompt -mathlink -noinit'"
+];
+
   info = Quiet[
     ParallelEvaluate[{ $KernelID, $MachineName, $MachineAddresses, $ProcessID },
       DistributedContexts -> None],
@@ -376,7 +378,11 @@ EnsureRemoteKernel[] := Module[{remoteHost = "100.111.63.24", remoteSpec, info, 
     ];
     If[info === $Failed, info = {}];
   ];
-  hasRemote = AnyTrue[info, MemberQ[#[[3]], remoteHost] &];
+  hasRemote = AnyTrue[
+    info,
+    (#[[2]] === remoteHost) || MemberQ[#[[3]], remoteHost] &
+  ];
+
   SQGPrint["Current worker addresses: ", If[info === {}, "none", info[[All, 3]]]];
   If[!hasRemote,
     SQGPrint["Launching remote kernel on ", remoteHost, "..."];
@@ -394,7 +400,7 @@ EnsureRemoteKernel[] := Module[{remoteHost = "100.111.63.24", remoteSpec, info, 
   If[!hasRemote,
     SQGPrint["Warning: remote kernel at ", remoteHost, " is still unavailable."];
   ];
-  LogKernelPool[];
+  (*LogKernelPool[];*)
 ];
 
 Clear[NewRunDir];
@@ -442,8 +448,8 @@ RunNewSimulation[
 
   DistributeDefinitions[MakeUProfile, SampleWTrajectory, nCycles];
   SQGPrint["[master] Ensuring remote kernel availability..."];
-  EnsureRemoteKernel[];
-  LogKernelPool[];
+  (*EnsureRemoteKernel[];*)
+  (*LogKernelPool[];*)
   SQGPrint["Processing on ", $KernelCount, " kernels, seeds with thinStride=", thinStride,
     ", nCycles=", nCycles];
 
@@ -486,4 +492,7 @@ RunNewSimulation[
 
 (* Demo run parameters (adjust as needed). *)
 On[Assert];
-RunNewSimulation[1., 48, 6, 12, 1.1, 1, 1, 10, $SQGTol, 10^4];
+RunNewSimulation[1., 1024, 6, 12, 1.1, 1, 1, 10, $SQGTol, 10];
+
+
+
