@@ -403,15 +403,15 @@ NewRunDir[] := FileNameJoin[{Directory[], "SQG_runs"}];
 Clear[RunNewSimulation];
 RunNewSimulation[
     z_?NumericQ,
-    nSteps_: 512,
-    M_: 6,
-    K_: 12,
+    nSteps_Integer: 512,
+    M_Integer: 6,
+    K_Integer: 12,
     sigma_: 0.15,
     s_: 1,
     stabEvery_: 15,
     thinStride_: 10,
     tol_: $SQGTol,
-    nCycles_: 10^4
+    nCycles_Integer: 10^4
   ] := Module[{useeds, rundir, params, paramsFile, rThinFile, chunkLists, data},
 
   rundir = NewRunDir[];
@@ -444,7 +444,7 @@ RunNewSimulation[
   SQGPrint["[master] Ensuring remote kernel availability..."];
   EnsureRemoteKernel[];
   LogKernelPool[];
-  SQGPrint["Processing on ", $KernelCount, "kernels, seeds with thinStride=", thinStride,
+  SQGPrint["Processing on ", $KernelCount, " kernels, seeds with thinStride=", thinStride,
     ", nCycles=", nCycles];
 
   Map[(
@@ -486,7 +486,4 @@ RunNewSimulation[
 
 (* Demo run parameters (adjust as needed). *)
 On[Assert];
-RunNewSimulation[1., 48, 6, 12, 1.1, 1, 1, 10, $SQGTol, Range[24]];
-
-
-
+RunNewSimulation[1., 48, 6, 12, 1.1, 1, 1, 10, $SQGTol, 10^4];
