@@ -397,20 +397,22 @@ EnsureRemoteKernel[] := Module[{remoteHost = "100.111.63.24", remoteSpec, info, 
   LogKernelPool[];
 ];
 
+Clear[NewRunDir];
+NewRunDir[] := FileNameJoin[{Directory[], "SQG_runs"}];
+
 Clear[RunNewSimulation];
 RunNewSimulation[
     z_?NumericQ,
-    nSteps_: 512,
-    M_: 6,
-    K_: 12,
+    nSteps_Integer: 512,
+    M_Integer: 6,
+    K_Integer: 12,
     sigma_: 0.15,
     s_: 1,
     stabEvery_: 15,
     thinStride_: 10,
     tol_: $SQGTol,
-    useeds_: Range[100],
-    chunkSize_: 10^4
-  ] := Module[{rundir, params, paramsFile, rThinFile, chunkLists, data},
+    nCycles_Integer: 10^4
+  ] := Module[{useeds, rundir, params, paramsFile, rThinFile, chunkLists, data},
 
   rundir = NewRunDir[];
   If[!DirectoryQ[rundir], CreateDirectory[rundir]];
@@ -426,9 +428,9 @@ RunNewSimulation[
     "stabEvery" -> stabEvery,
     "thinStride" -> thinStride,
     "tol" -> tol,
-    "useeds" -> useeds,
-    "chunkSize" -> chunkSize
+    "nCycles" -> nCycles
   |>;
+
   paramsFile = FileNameJoin[{rundir, "params.txt"}];
   Export[paramsFile, params];
   Export[FileNameJoin[{rundir, "date_begin.txt"}], Now];
@@ -436,34 +438,43 @@ RunNewSimulation[
   rThinFile = FileNameJoin[{rundir, "rthin.bin"}];
   If[FileExistsQ[rThinFile], DeleteFile[rThinFile]];
 
-  DistributeDefinitions[MakeUProfile, SampleWTrajectory, chunkSize];
+  useeds = Table[j * ($KernelCount*10) + i, {j, nCycles}, {i, $KernelCount}];
+
+  DistributeDefinitions[MakeUProfile, SampleWTrajectory, nCycles];
   SQGPrint["[master] Ensuring remote kernel availability..."];
   EnsureRemoteKernel[];
   LogKernelPool[];
-  SQGPrint["Processing ", Length[useeds], " seeds with thinStride=", thinStride,
-    ", chunkSize=", chunkSize];
+  SQGPrint["Processing on ", $KernelCount, " kernels, seeds with thinStride=", thinStride,
+    ", nCycles=", nCycles];
 
-  chunkLists = ParallelMap[
-    Function[seed,
-      Module[{f, samples},
-        f = MakeUProfile[M, K, sigma, seed];
-        samples = SampleWTrajectory[z, f, s, nSteps, stabEvery, tol, thinStride, chunkSize];
-        SQGPrint["[Kernel ", $KernelID, " @ ", $MachineName, "] completed seed ", seed,
-          " with ", Length[samples], " samples."];
-        samples
-      ]
-    ],
-    useeds,
-    ProgressReporting -> True
-  ];
+  Map[(
+      chunkLists =     
+        ParallelMap[
+          Function[seed,
+            Module[{f, samples},
+              f = MakeUProfile[M, K, sigma, seed];
+              samples = SampleWTrajectory[z, f, s, nSteps, stabEvery, tol, thinStride, nCycles];
+              SQGPrint["[Kernel ", $KernelID, " @ ", $MachineName, "] completed seed ", seed,
+                " with ", Length[samples], " samples."];
+              samples
+            ]
+          ],
+          #,
+          ProgressReporting -> True
+        ];
 
-  data = Developer`ToPackedArray @ N @ Flatten[chunkLists];
-  SQGPrint["[master] writing ", Length[data], " samples to ", rThinFile];
-  If[Length[data] > 0,
-    Module[{fh = OpenWrite[rThinFile, BinaryFormat -> True]},
-      BinaryWrite[fh, data, "Real64"];
-      Close[fh];
-    ]
+      (* Save chunk lists *)
+      data = Developer`ToPackedArray @ N @ Flatten[chunkLists];
+      SQGPrint["[master] writing ", Length[data], " samples to ", rThinFile];
+      If[Length[data] > 0,
+        Module[{fh = OpenWrite[rThinFile, BinaryFormat -> True]},
+          BinaryWrite[fh, data, "Real64"];
+          Close[fh];
+        ]
+      ];
+
+      )&, 
+    useeds
   ];
 
   Export[FileNameJoin[{rundir, "date_end.txt"}], Now];
@@ -475,7 +486,4 @@ RunNewSimulation[
 
 (* Demo run parameters (adjust as needed). *)
 On[Assert];
-RunNewSimulation[1., 48, 6, 12, 1.1, 1, 1, 10, $SQGTol, Range[24]];
-
-
-
+RunNewSimulation[1., 48, 6, 12, 1.1, 1, 1, 10, $SQGTol, 10^4];
