@@ -1,7 +1,8 @@
 (* ::Package:: *)
 
 (* ::Input:: *)
-(* ========================== SQG2.wl (Euclidean tetrad, metric-free) ========================== *)
+(* ========================== SQG2 . wl (Euclidean tetrad, metric-free) ========================== *)
+
 
 (*tolerances/precision*)
 If[!ValueQ[$SQGTol],$SQGTol=1.*^-12];
@@ -14,22 +15,22 @@ tBasis[A_]:=If[A==1,I IdentityMatrix[2],pauli[[A-1]]];
 
 
 (* ----- Euclidean mixed 't Hooft symbols (time slot = 1) ----- *)
-(* A,B = 1..4 with 1 ≡ t_E; spatial slots 2..4 map to a=1..3.
-   η^i_{ab} = ε_{iab},   η^i_{a,1} = +δ_{ia},   η^i_{1,a} = -δ_{ia}
-   arη^i_{ab} = ε_{iab}, arη^i_{a,1} = -δ_{ia}, arη^i_{1,a} = +δ_{ia} *)
+(* A,B = 1..4 with 1 \[Congruent] t_E; spatial slots 2..4 map to a=1..3.
+   \[Eta]^i_{ab} = \[CurlyEpsilon]_{iab},   \[Eta]^i_{a,1} = +\[Delta]_{ia},   \[Eta]^i_{1,a} = -\[Delta]_{ia}
+   \.08ar\[Eta]^i_{ab} = \[CurlyEpsilon]_{iab}, \.08ar\[Eta]^i_{a,1} = -\[Delta]_{ia}, \.08ar\[Eta]^i_{1,a} = +\[Delta]_{ia} *)
 Clear[EtaMixed, BarEtaMixed];
-EtaMixed := EtaMixed = Module[{e3 = LeviCivitaTensor[3], δ = KroneckerDelta, E},
+EtaMixed := EtaMixed = Module[{e3 = LeviCivitaTensor[3], \[Delta] = KroneckerDelta, E},
   E = ConstantArray[0., {3, 4, 4}];
   Do[E[[i, a+1, b+1]] = e3[[i, a, b]], {i, 1, 3}, {a, 1, 3}, {b, 1, 3}];
-  Do[E[[i, a+1, 1]] =  δ[i, a],       {i, 1, 3}, {a, 1, 3}];
-  Do[E[[i, 1, a+1]] = -δ[i, a],       {i, 1, 3}, {a, 1, 3}];
+  Do[E[[i, a+1, 1]] =  \[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
+  Do[E[[i, 1, a+1]] = -\[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
   Developer`ToPackedArray @ E
 ];
-BarEtaMixed := BarEtaMixed = Module[{e3 = LeviCivitaTensor[3], δ = KroneckerDelta, E},
+BarEtaMixed := BarEtaMixed = Module[{e3 = LeviCivitaTensor[3], \[Delta] = KroneckerDelta, E},
   E = ConstantArray[0., {3, 4, 4}];
   Do[E[[i, a+1, b+1]] = e3[[i, a, b]], {i, 1, 3}, {a, 1, 3}, {b, 1, 3}];
-  Do[E[[i, a+1, 1]] = -δ[i, a],       {i, 1, 3}, {a, 1, 3}];
-  Do[E[[i, 1, a+1]] =  δ[i, a],       {i, 1, 3}, {a, 1, 3}];
+  Do[E[[i, a+1, 1]] = -\[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
+  Do[E[[i, 1, a+1]] =  \[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
   Developer`ToPackedArray @ E
 ];
 
@@ -47,11 +48,11 @@ Developer`ToPackedArray[F]];
 
 (* Clear[UrbantkeMetric];
 UrbantkeMetric[P_, tol_:$SQGTol] := Module[{F, FF1, FF2, FF3, G, d, gDn},
-  F = Fhat[P];                                (* F is 3×4×4 of antisymmetric 2-forms *)
-  FF1 = F[[2]].F[[3]] - F[[3]].F[[2]];        (* ε_{23k} F^2 F^3, etc. *)
+  F = Fhat[P];                                (* F is 3\[Times]4\[Times]4 of antisymmetric 2-forms *)
+  FF1 = F[[2]].F[[3]] - F[[3]].F[[2]];        (* \[CurlyEpsilon]_{23k} F^2 F^3, etc. *)
   FF2 = F[[3]].F[[1]] - F[[1]].F[[3]];
   FF3 = F[[1]].F[[2]] - F[[2]].F[[1]];
-  G   = -(FF1.F[[1]] + FF2.F[[2]] + FF3.F[[3]])/6.;   (* √g g = -(1/6) ε F F F *)
+  G   = -(FF1.F[[1]] + FF2.F[[2]] + FF3.F[[3]])/6.;   (* \[Sqrt]g g = -(1/6) \[CurlyEpsilon] F F F *)
   G   = Chop[(G + Transpose[G])/2, tol];              (* symmetric numerically *)
   d   = Det @ N @ G;
   gDn = If[NumericQ[d] && d =!= 0, N @ Chop[G/Abs[d]^(1/4), tol], IdentityMatrix[4]];
@@ -142,8 +143,8 @@ ok];
 If[!ValueQ[$AssertStepOnce],$AssertStepOnce=True];
 Clear[SolveOmegaH20];
 SolveOmegaH20[P_, S0_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
- Module[{L,  Πs, U, S, V, s, smax, d,  v, i0, zIdx, fUse},
-  {L, Πs} = BuildSystem20[P, S0, tol];
+ Module[{L,  \[CapitalPi]s, U, S, V, s, smax, d,  v, i0, zIdx, fUse},
+  {L, \[CapitalPi]s} = BuildSystem20[P, S0, tol];
 
   {U, S, V} = SingularValueDecomposition[SetPrecision[L, wp]];
   s    = Diagonal[S];
@@ -165,7 +166,7 @@ SolveOmegaH20[P_, S0_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
   <|
     "\[CapitalOmega]" -> ArrayReshape[v[[1 ;; 16]], {4, 4}],
     "h"               -> v[[17 ;; 20]],
-    "\[CapitalPi]s"   -> Πs
+    "\[CapitalPi]s"   -> \[CapitalPi]s
   |>
 ]
 

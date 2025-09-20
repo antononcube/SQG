@@ -58,5 +58,15 @@
         "${workspaceFolder}/scripts/SQG3_euclid.wl"
       ]
     }
+    {
+      "label": "Run SQGAll",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/scripts/SQG_all.wl"
+      ]
+    }
   ]
 }

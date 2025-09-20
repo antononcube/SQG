@@ -7,8 +7,13 @@
 $HistoryLength = 0; (* Avoid kernel history bloat. *)
 
 (* import SQG1, SQG2 into this file's namespace, as if they were one file *)
-Get[FileNameJoin[{DirectoryName[$InputFileName], "SQG1_euclid.wl"}]];
-Get[FileNameJoin[{DirectoryName[$InputFileName], "SQG2_euclid.wl"}]];
+(* Resolve base folder robustly on any kernel (wolframscript or remote) *)
+base = Quiet@Check[DirectoryName[$InputFileName], $Failed];
+If[!StringQ[base] || base === "", base = Directory[]];
+If[!FileExistsQ[FileNameJoin[{base, "SQG1_euclid.wl"}]], base = FileNameJoin[{base, "scripts"}]];
+
+Get[FileNameJoin[{base, "SQG1_euclid.wl"}]];
+Get[FileNameJoin[{base, "SQG2_euclid.wl"}]];
 
 If[!ValueQ[$SQGTol], $SQGTol = 1.*^-12];
 If[!ValueQ[$SQGZ0],  $SQGZ0  = 1.0];
@@ -22,9 +27,9 @@ MakeUProfile[M_: 6, K_: 12, sigma_: 0.15, seed_: Automatic] :=
       b  = RandomVariate[NormalDistribution[0, sigma], {M, K}];
       xi = RandomVariate[NormalDistribution[0, sigma], M];
       Function[
-        θ,
+        \[Theta],
         Table[
-          xi[[m]] + Sum[a[[m, k]] Sin[k θ] + b[[m, k]] Cos[k θ], {k, 1, K}],
+          xi[[m]] + Sum[a[[m, k]] Sin[k \[Theta]] + b[[m, k]] Cos[k \[Theta]], {k, 1, K}],
           {m, 1, M}
         ]
       ]
@@ -45,7 +50,7 @@ SampleWTrajectory[
     chunkSize_: 10^4,
     flushFun_: Automatic
   ] :=
-  Module[{θs, dθ, P, fθ, sol, k, R, stride = thinStride, chunk = chunkSize,
+  Module[{\[Theta]s, d\[Theta], P, f\[Theta], sol, k, R, stride = thinStride, chunk = chunkSize,
           buffer = {}, localCollect = {}, flush},
 
     If[!IntegerQ[stride] || stride <= 0, stride = 1];
@@ -56,14 +61,14 @@ SampleWTrajectory[
       flushFun
     ];
 
-    θs = Subdivide[0., 2 Pi, nSteps - 1];
-    dθ = θs[[2]] - θs[[1]];
+    \[Theta]s = Subdivide[0., 2 Pi, nSteps - 1];
+    d\[Theta] = \[Theta]s[[2]] - \[Theta]s[[1]];
     P  = SeedFromZ[z];
     R  = RfromP[P, z, s];
 
     For[k = 1, k <= nSteps, k++,
-      fθ  = fFun[θs[[k]]];
-      sol = StepSDE20[P, fθ, dθ, stabEvery, k, tol];
+      f\[Theta]  = fFun[\[Theta]s[[k]]];
+      sol = StepSDE20[P, f\[Theta], d\[Theta], stabEvery, k, tol];
       P   = sol["P"];
 
       If[Mod[nSteps - k, stride] == 0,
@@ -195,5 +200,5 @@ RunNewSimulation[
   1,       (* stabEvery *)
   10,      (* thinStride *)
   $SQGTol, (* tol *)
-  Range[100]
+  Range[1] (*seeds*)
 ];
