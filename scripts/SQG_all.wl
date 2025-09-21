@@ -492,7 +492,7 @@ RunNewSimulation[
 
 (* Demo run parameters (adjust as needed). *)
 On[Assert];
-RunNewSimulation[1., 1024, 6, 12, 1.1, 1, 1, 10, $SQGTol, 10];
+RunNewSimulation[1., 1024, 6, 12, 1.1, 1, 1, 10, $SQGTol, 128];
 
 
 
