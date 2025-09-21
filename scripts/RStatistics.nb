@@ -1,0 +1,96 @@
+(* =================Chebyshev fit of tail (log S vs log R)=================*)
+Clear[ChebTailFit];
+
+Options[ChebTailFit] = {"Degree" -> 
+    10,(*Chebyshev degree (\[LessEqual] ~12 to avoid overfit)*)
+   "TailFrac" -> 0.01,(*use top 1% by default to define tail*)
+   "Weights" -> Automatic};
+
+ChebTailFit[R_List, OptionsPattern[]] := 
+  Module[{deg = OptionValue["Degree"], q = 1 - OptionValue["TailFrac"],
+     wopt = OptionValue["Weights"],(*tail selection*)rt, Rtail, logR, 
+    logS, Ntl, xmin, xmax, tOf, X, y, w, lm, params, Xdesign, sig2, 
+    cov,(*covariance of coefficients*)T, U,(*Chebyshev T_k and U_{k-1}*)
+    phi, dphi,(*basis and derivative in x=logR*)ymean, ysd, gamma, 
+    gammaSD, xgrid, yfit, yfitErr, gfit, gfitErr}, 
+   If[Length[R] < 1000, Return[<|"error" -> "Too few samples"|>]];
+   rt = Quantile[R, q];
+   Rtail = Select[R, # >= rt &];
+   If[Length[Rtail] < 100, 
+    Return[<|"error" -> "Insufficient tail samples"|>]];
+   logR = Sort@Log@Rtail;
+   (*empirical survival S at these support points*)
+   logS = Module[{Ntl = Length@logR, ranks = Range[Length@logR]}, 
+     Log[(Ntl - ranks + 1)/Ntl]];
+   Ntl = Length[logR];
+   xmin = First@logR; xmax = Last@logR;
+   If[xmax <= xmin, Return[<|"error" -> "Degenerate tail abscissa"|>]];
+   (*map x\[Element][xmin,xmax] to t\[Element][-1,1]*)
+   tOf[x_] := 2 (x - xmin)/(xmax - xmin) - 1;
+   T[k_, t_] := ChebyshevT[k, t];
+   U[k_, t_] := ChebyshevU[k, t];
+   (*design matrix for LinearModelFit:columns \[CurlyPhi]_k(x)=
+   T_k(t(x)),k=0..deg*)
+   X = Table[T[k, tOf[logR[[i]]]], {i, 1, Ntl}, {k, 0, deg}];
+   y = logS;
+   w = Which[wopt === Automatic, ConstantArray[1., Ntl], 
+     VectorQ[wopt, NumericQ] && Length[wopt] == Ntl, wopt, True, 
+     ConstantArray[1., Ntl]];
+   (*Linear least squares in the Chebyshev basis*)
+   lm = LinearModelFit[
+     Transpose@{Range@Ntl, y},(*dummy predictor index;
+     we give explicit design*)Table[#1^0 &, {deg + 1}],(*placeholder;
+     we\[CloseCurlyQuote]ll override with DesignMatrix*)Range@Ntl, 
+     IncludeConstantBasis -> False, Weights -> w];
+   (*Overwrite LM\[CloseCurlyQuote]s internal design with ours (keeps i\
+ts diagnostics available)*)Xdesign = X;(*(Ntl\[Times](deg+1))*)
+   params = 
+    LinearSolve[DiagonalMatrix[w] . Xdesign, DiagonalMatrix[w] . y];
+   (*residual variance*)
+   sig2 = Total[(y - Xdesign . params)^2]/Max[1, (Ntl - (deg + 1))];
+   cov = 
+    sig2*Inverse[
+      Transpose[Xdesign] . 
+       Xdesign];(*(deg+1)\[Times](deg+1)*)(*basis and derivative in x*)
+   phi[x_] := Table[T[k, tOf[x]], {k, 0, deg}];
+   dphi[x_] := 
+    Module[{t = tOf[x], dtdx = 2/(xmax - xmin)}, 
+     Table[If[k == 0, 0, k*U[k - 1, t]*dtdx], {k, 0, deg}]];
+   (*mean and sd for fitted logS and gamma at any x*)
+   ymean[x_] := phi[x] . params;
+   ysd[x_] := 
+    Sqrt[phi[x] . cov . 
+      phi[x]];(*sqrt(\[CurlyPhi] \[CapitalSigma] \[CurlyPhi]ᵀ)*)
+   gamma[x_] := dphi[x] . params;(*d(logS)/dx*)
+   gammaSD[x_] := 
+    Sqrt[dphi[x] . cov . 
+      dphi[x]];(*sqrt(g \[CapitalSigma]\
+ gᵀ)*)(*produce smooth curves across the tail*)
+   xgrid = N@Subdivide[xmin, xmax, 400];
+   yfit = ymean /@ xgrid;
+   yfitErr = ysd /@ xgrid;
+   gfit = gamma /@ xgrid;
+   gfitErr = gammaSD /@ xgrid;
+   <|"domain" -> {xmin, xmax}, "degree" -> deg, "count" -> Ntl, 
+    "coeffs" -> params,(*Chebyshev coefficients c_k*)
+    "cov" -> cov,(*covariance of c_k*)"logRgrid" -> xgrid, 
+    "logSfit" -> Transpose@{xgrid, MapThread[Around, {yfit, yfitErr}]},
+     "gamma" -> Transpose@{xgrid, MapThread[Around, {gfit, gfitErr}]}|>];
+
+(*--------------Example usage-------------- R=BinaryReadList[\
+"/path/to/runs/0003/rthin.bin","Real64"];
+(*pick top 1% as tail;fit deg=10*)res=ChebTailFit[R,"Degree"->10,\
+"TailFrac"->0.01];
+ListLinePlot[res["logSfit"],Frame->True,FrameLabel->{"log R","log \
+S"},PlotTheme->"Scientific"] ListLinePlot[res["gamma"],Frame->True,\
+FrameLabel->{"log R","\[Gamma](log \
+R)"},PlotRange->All,PlotTheme->"Scientific"]---------------------------------------------*)
+
+
+R = BinaryReadList["/path/to/runs/000x/rthin.bin", "Real64"];
+res = ChebTailFit[R, "Degree" -> 10, "TailFrac" -> 0.01];
+
+ListLinePlot[res["logSfit"], Frame -> True, 
+  FrameLabel -> {"log R", "log S"}];
+ListLinePlot[res["gamma"], Frame -> True, 
+  FrameLabel -> {"log R", "\[Gamma](log R)"}, PlotRange -> All];
