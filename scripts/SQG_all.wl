@@ -1,268 +1,253 @@
 (* ::Package:: *)
 
-$HistoryLength = 0;
-Clear[SQGPrint];
-$SQGDiagnostics = True;
-If[!ValueQ[$SQGDiagnostics], $SQGDiagnostics = False];
-SQGPrint[args___] := If[TrueQ[$SQGDiagnostics], Print[args]];
+(* ======================================================= *)
+(* 0. Euclidean mixed 't Hooft symbols (time slot = 1)     *)
+(* ======================================================= *)
+Clear[EtaMixed,BarEtaMixed];
 
+EtaMixed=Module[{e3=LeviCivitaTensor[3],\[Delta]=KroneckerDelta,E,i,a,b},E=ConstantArray[0.,{3,4,4}];
+For[i=1,i<=3,i++,For[a=1,a<=3,a++,For[b=1,b<=3,b++,E[[i,a+1,b+1]]=e3[[i,a,b]];];];];
+For[i=1,i<=3,i++,For[a=1,a<=3,a++,E[[i,a+1,1]]=\[Delta][i,a];
+E[[i,1,a+1]]=-\[Delta][i,a];];];
+Developer`ToPackedArray@E];
 
-(* ::Package:: *)
-(**)
+BarEtaMixed=Module[{e3=LeviCivitaTensor[3],\[Delta]=KroneckerDelta,E,i,a,b},E=ConstantArray[0.,{3,4,4}];
+For[i=1,i<=3,i++,For[a=1,a<=3,a++,For[b=1,b<=3,b++,E[[i,a+1,b+1]]=e3[[i,a,b]];];];];
+For[i=1,i<=3,i++,For[a=1,a<=3,a++,E[[i,a+1,1]]=-\[Delta][i,a];
+E[[i,1,a+1]]=\[Delta][i,a];];];
+Developer`ToPackedArray@E];
 
+Aeta := Table[EtaMixed[[a, ;;, ;;]], {a, 1, 3}];
 
-(* ====================== SQG1.wl (Euclidean tetrad seed) ======================
-   Patched on 2025-09-18T05:25:29.686775 by Eily: switch to Euclidean tetrad basis.
-   - Work entirely in tetrad indices M=1..4 \[Congruent] (t_E, r\:0302, \[Theta]\:0302, \[CurlyPhi]\:0302), with \[Delta]_{AB}.
-   - SeedFromZ now returns SU(2) seed P (4\[Times]4) in tetrad basis; Abelian row left 0.
-   - Optional Urbantke check included (Euclidean triple-product form), local-only.
-============================================================================= *)
-
-If[!ValueQ[$SQGTol], $SQGTol = 1.*^-12];
-
-(* Curvature scale \[Psi](z) with z = r^3 / r0 (M=1) *)
-Clear[psiFromZ];
+(* ======================================================= *)
+(* 1. Seed P(z)                                            *)
+(* ======================================================= *)
+Clear[psiFromZ, SeedFromZ];
 psiFromZ[z_?NumericQ] := 1./(2. z);
 
-(* Euclidean BH seed in tetrad basis (columns M = {t_E, r\:0302, \[Theta]\:0302, \[CurlyPhi]\:0302}) *)
-Clear[SeedFromZ];
 SeedFromZ[z_?NumericQ] := Module[{\[Psi] = psiFromZ[z], \[Alpha], \[Beta], P},
-  \[Alpha] = 0.5 Sqrt[\[Psi]];  (* along r\:0302 *)
-  \[Beta] = -Sqrt[\[Psi]];     (* along \[Theta]\:0302, \[CurlyPhi]\:0302 *)
+  \[Alpha] = 0.5 Sqrt[\[Psi]]; \[Beta] = -Sqrt[\[Psi]];
   P = ConstantArray[0., {4, 4}];
-  P[[2, 2]] = \[Alpha];    (* P^1_{r\:0302} *)
-  P[[3, 3]] = \[Beta];    (* P^2_{\[Theta]\:0302} *)
-  P[[4, 4]] = \[Beta];    (* P^3_{\[CurlyPhi]\:0302} *)
+  P[[2, 2]] = \[Alpha]; P[[3, 3]] = \[Beta]; P[[4, 4]] = \[Beta];
   P[[1, 1]] = 1/(\[Alpha] \[Beta]^2);
   Developer`ToPackedArray @ N @ P
 ];
 
-$SQG1Loaded = True;
+Clear[Skew];
+Skew[X_] := (X - Transpose[X])/2;
 
+(* ======================================================= *)
+(* 2. f(P) and \[Delta]f(P,\[Delta]P)                                   *)
+(* ======================================================= *)
+Clear[fMatrix, dfMatrixByDeltaP];
 
-
-(* ::Package:: *)
-(**)
-
-
-(* ::Input:: *)
-(* ========================== SQG2 . wl (Euclidean tetrad, metric-free) ========================== *)
-
-
-(*tolerances/precision*)
-If[!ValueQ[$SQGTol],$SQGTol=1.*^-12];
-If[!ValueQ[$SQGWP],$SQGWP=80];
-
-(*-----Pauli& internal basis T_A-----*)
-pauli={{{0,1},{1,0}},{{0,-I},{I,0}},{{1,0},{0,-1}}};
-tBasis[A_]:=If[A==1,I IdentityMatrix[2],pauli[[A-1]]];
-
-
-
-(* ----- Euclidean mixed 't Hooft symbols (time slot = 1) ----- *)
-(* A,B = 1..4 with 1 \[Congruent] t_E; spatial slots 2..4 map to a=1..3.
-   \[Eta]^i_{ab} = \[CurlyEpsilon]_{iab},   \[Eta]^i_{a,1} = +\[Delta]_{ia},   \[Eta]^i_{1,a} = -\[Delta]_{ia}
-   \.08ar\[Eta]^i_{ab} = \[CurlyEpsilon]_{iab}, \.08ar\[Eta]^i_{a,1} = -\[Delta]_{ia}, \.08ar\[Eta]^i_{1,a} = +\[Delta]_{ia} *)
-Clear[EtaMixed, BarEtaMixed];
-EtaMixed := EtaMixed = Module[{e3 = LeviCivitaTensor[3], \[Delta] = KroneckerDelta, E},
-  E = ConstantArray[0., {3, 4, 4}];
-  Do[E[[i, a+1, b+1]] = e3[[i, a, b]], {i, 1, 3}, {a, 1, 3}, {b, 1, 3}];
-  Do[E[[i, a+1, 1]] =  \[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
-  Do[E[[i, 1, a+1]] = -\[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
-  Developer`ToPackedArray @ E
-];
-BarEtaMixed := BarEtaMixed = Module[{e3 = LeviCivitaTensor[3], \[Delta] = KroneckerDelta, E},
-  E = ConstantArray[0., {3, 4, 4}];
-  Do[E[[i, a+1, b+1]] = e3[[i, a, b]], {i, 1, 3}, {a, 1, 3}, {b, 1, 3}];
-  Do[E[[i, a+1, 1]] = -\[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
-  Do[E[[i, 1, a+1]] =  \[Delta][i, a],       {i, 1, 3}, {a, 1, 3}];
-  Developer`ToPackedArray @ E
-];
-
-
-(*-----spacetime helpers-----*)
-Pmu2x2[P_,\[Mu]_Integer?Positive]:=Sum[tBasis[A]*P[[A,\[Mu]]],{A,1,4}];
-
-(*LOWER only (P stored with upper \[Mu]):P^A{}_\[Nu]=g_{\[Nu]\[Mu]} P^{A\[Mu]}*)
-
-(*-----curvature F from P (for Urbantke)-----*)
-Fhat[P_]:=Module[{F=ConstantArray[0.,{3,4,4}],Pm,Pn,comm},Do[Pm=Pmu2x2[P,\[Mu]];Pn=Pmu2x2[P,\[Nu]];comm=Pm . Pn-Pn . Pm;
-Do[F[[i,\[Mu],\[Nu]]]=Im[Tr[pauli[[i]] . comm]];
-F[[i,\[Nu],\[Mu]]]=-F[[i,\[Mu],\[Nu]]],{i,1,3}],{\[Mu],1,4},{\[Nu],\[Mu]+1,4}];
-Developer`ToPackedArray[F]];
-
-(* Clear[UrbantkeMetric];
-UrbantkeMetric[P_, tol_:$SQGTol] := Module[{F, FF1, FF2, FF3, G, d, gDn},
-  F = Fhat[P];                                (* F is 3\[Times]4\[Times]4 of antisymmetric 2-forms *)
-  FF1 = F[[2]].F[[3]] - F[[3]].F[[2]];        (* \[CurlyEpsilon]_{23k} F^2 F^3, etc. *)
-  FF2 = F[[3]].F[[1]] - F[[1]].F[[3]];
-  FF3 = F[[1]].F[[2]] - F[[2]].F[[1]];
-  G   = -(FF1.F[[1]] + FF2.F[[2]] + FF3.F[[3]])/6.;   (* \[Sqrt]g g = -(1/6) \[CurlyEpsilon] F F F *)
-  G   = Chop[(G + Transpose[G])/2, tol];              (* symmetric numerically *)
-  d   = Det @ N @ G;
-  gDn = If[NumericQ[d] && d =!= 0, N @ Chop[G/Abs[d]^(1/4), tol], IdentityMatrix[4]];
-  <|"densitized" -> G, "g" -> gDn, "ginv" -> Inverse[gDn]|>
-]; *)
-
-(*-----covariant internal Gram and A(\[CapitalOmega])-----*)
-Clear[Sgram,AfromOmega,Skew];
-Sgram[P_,tol_:$SQGTol]:= Developer`ToPackedArray@N@Chop[P . Transpose[P],tol];
-AfromOmega[P_,Om_,tol_:$SQGTol]:= Developer`ToPackedArray@N@Chop[P . Om . Transpose[P],tol];
-Skew[M_]:=(M-Transpose[M])/2.;
-
-(*-----stable internal 4\[Times]4 solve for Xi-----*)
-Clear[XiFrom];
-XiFrom[P_,S_,Om_,H_,mu_:Automatic]:=Module[{A=AfromOmega[P,Om],\[Mu],wp=$SQGWP,SS,RHS,X},\[Mu]=If[mu===Automatic,1.*^-8,mu];
-SS=SetPrecision[N@Chop[S,$SQGTol],wp]+SetPrecision[\[Mu],wp] IdentityMatrix[4];
-RHS=SetPrecision[N@Chop[Skew[A],$SQGTol],wp];
-X=LinearSolve[SS,RHS];
--X+H];
-
-(*-----duality residuals: \bar\[Eta]^i_{\[Mu]}{}^{\[Nu]} tr(\[Sigma]_i P^{\[Mu]} \[Delta]P_{\[Nu]})-----*)
-Clear[DualityBlocksFor];
-DualityBlocksFor[P_,dP_,tol_:$SQGTol]:=Module[{
-    be=BarEtaMixed,
-    r1=ConstantArray[0.,{3,3}],
-    r2=ConstantArray[0.,{3,3}],
-    tAB, PdP, PdM, dPP, MdP
-  },
-  tAB = Table[tBasis[A] . tBasis[B],{A,4},{B,4}];
-  (* (4,4,2,2)*)
-  PdP = Table[P . be[[a]] . Transpose[dP],{a,3}];
-  (* (3,4,4)*)
-  dPP = Table[dP . be[[a]] . Transpose[P],{a,3}];
-  (* (3,2,2) *)                          (* (3,4,4)(4,4,2,2)*)
-  MdP =TensorContract[TensorProduct[ PdP,tAB],{{2,4},{3,5}}];
-  (* (3,2,2) *)                          (* (3,4,4)(4,4,2,2)*)
-  PdM =TensorContract[TensorProduct[ dPP,tAB],{{2,4},{3,5}}];
-  (* (3,2,2) *)
-  Do[
-    r1[[a,i]]+=Im@Tr[pauli[[i]] . PdM[[a]]];
-    r2[[a,i]]+=Im@Tr[pauli[[i]] . MdP[[a]]],
-    {a,1,3}, {i,1,3}
-  ];
-  Developer`ToPackedArray@Join[Flatten[r1],Flatten[r2]]
-];
-
-(*-----internal projectors \[CapitalPi]_k (trace=1) from S-----*)
-Clear[InternalProjectors];
-InternalProjectors[S_, tol_:$SQGTol] := Module[{vals, vecs, V},
-  {vals,vecs}=Eigensystem[S];
+fMatrix[P_] := Module[{Amats = Aeta},
   Table[
-    With[{v = vecs[[k]]},
-      Developer`ToPackedArray@TensorProduct[v,v]
+    1/2 Sum[
+      LeviCivitaTensor[3][[i, j, k]] *
+        ( P[[j, ;;]] . Amats[[a]] . P[[;;, k]] ),
+      {j, 1, 3}, {k, 1, 3}
     ],
-    {k,1,4}
+    {i, 1, 3}, {a, 1, 3}
   ]
 ];
 
-(*-----build 20\[Times]20 (18 duality+metric-free tr\[CapitalOmega],trH)-----*)
-Clear[BuildSystem20];
-BuildSystem20[P_,S_,tol_:$SQGTol]:=Module[{Pnum=N@Chop[P,tol],\[CapitalPi]s,cols,Oe,He,dP,L18,trO,trH,L},
-\[CapitalPi]s=InternalProjectors[S,tol];
-cols=ConstantArray[0.,{20,18}];
-Do[Oe=ConstantArray[0.,{4,4}];Oe[[ai,bj]]=1.;
-He=ConstantArray[0.,{4,4}];
-dP=Oe . Pnum-Pnum . XiFrom[Pnum,S,Oe,He,Automatic];
-cols[[(ai-1)*4+bj,;;]]=DualityBlocksFor[Pnum,dP,tol],{ai,1,4},{bj,1,4}];
-Do[Oe=ConstantArray[0.,{4,4}];
-He=\[CapitalPi]s[[k]];
-dP=-Pnum . He;
-cols[[16+k,;;]]=DualityBlocksFor[Pnum,dP,tol],{k,1,4}];
-L18=Transpose[cols];
-trO=Join[Flatten@IdentityMatrix[4],ConstantArray[0.,4]];
-trH=Join[ConstantArray[0.,16],ConstantArray[1.,4]];
-L=Join[L18,{trO,trH}];
-{Developer`ToPackedArray[L],\[CapitalPi]s}];
-
-(*-----optional one-shot step consistency checker-----*)
-Clear[AssertStepConsistency];
-AssertStepConsistency[P_,Om_,H_,tol_:$SQGTol]:=Module[{ok=True,msg={}},If[Dimensions[P]=!={4,4},ok=False;AppendTo[msg,"P not 4x4"]];
-If[Dimensions[Om]=!={4,4},ok=False;AppendTo[msg,"\[CapitalOmega] not 4x4 (spacetime)"]];
-If[Dimensions[H]=!={4,4},ok=False;AppendTo[msg,"H not 4x4 (internal)"]];
-If[Abs[Tr[Om]-Tr[H]]>10 tol,ok=False;AppendTo[msg,"tr\[CapitalOmega] != trH: "<>ToString@NumberForm[{Tr[Om],Tr[H]},{8,3}]]];
-If[!ok,Print["[step-check] ",StringRiffle[msg,"; "]]];
-ok];
-
-(*-----solve 20\[Times]20,single SDE step;enforce P^0 imaginary;assert once-----*)
-If[!ValueQ[$AssertStepOnce],$AssertStepOnce=True];
-Clear[SolveOmegaH20];
-SolveOmegaH20[P_, S0_, f_, tol_ : $SQGTol, wp_ : $SQGWP] :=
- Module[{L,  \[CapitalPi]s, U, S, V, s, smax, d,  v, i0, zIdx, fUse},
-  {L, \[CapitalPi]s} = BuildSystem20[P, S0, tol];
-
-  {U, S, V} = SingularValueDecomposition[SetPrecision[L, wp]];
-  s    = Diagonal[S];
-  (* Print["after SVD: s=", N[s]]; *)
-  (* pseudoinverse diag: nonzeros -> 1/s, zeros -> 0 *)
-  smax = Max[s, 0.];
-  d    = If[# > tol*smax, 1./#, 0.] & /@ s;
-  (* indices of zero singulars: tail starting at first zero of d *)
-  i0   = FirstPosition[d, 0., Missing["NotFound"]];
-  zIdx = If[MissingQ[i0], {}, Range[i0[[1]], Length@d]];
-  (* Print["null dim=", Length@zIdx]; *)
-  (* match kick length to nullspace dim, or skip if none *)
-  fUse = If[zIdx === {}, {}, Take[PadRight[Flatten@{f}, Length@zIdx, 0.], Length@zIdx]];
-  If[fUse =!= {}, 
-  v =  V[[All, zIdx]] . fUse;
-  (* Print["v=", v]; *)
-  ];
-
-  <|
-    "\[CapitalOmega]" -> ArrayReshape[v[[1 ;; 16]], {4, 4}],
-    "h"               -> v[[17 ;; 20]],
-    "\[CapitalPi]s"   -> \[CapitalPi]s
-  |>
-]
-
-
-Clear[StepSDE20];
-StepSDE20[P_,f_,d\[Theta]_:1.,stabEvery_:8,stepIndex_:1,tol_:$SQGTol,wp_:$SQGWP]:=
-Module[{S,sol,Om,h,\[CapitalPi]s,Hint,Xi,dP,Pnew,det},
-  S=Sgram[P,tol];
-  (* Print["S=", MatrixForm@S]; *)
-  sol=SolveOmegaH20[P,S,f,tol,wp];
-  Om=sol["\[CapitalOmega]"];h=sol["h"];\[CapitalPi]s=sol["\[CapitalPi]s"];
-  Hint=Sum[h[[k]] \[CapitalPi]s[[k]],{k,1,4}];
-  (*internal H*)If[$AssertStepOnce&&stepIndex==1,AssertStepConsistency[P,Om,Hint,$SQGTol];$AssertStepOnce=False];
-  Xi=XiFrom[P,S,Om,Hint,Automatic];
-  (*internal 4\[Times]4*)dP=Om . P-P . Xi;
-  (* Print["d\[Theta]dP=", MatrixForm@(d\[Theta] dP)]; *)
-  (*mixed spacetime/internal*)
-  Pnew=P+d\[Theta] dP;
-  det=Det[Pnew];
-  Assert[Abs[Im[det]] < 0.1 tol];
-  Pnew=Pnew/Abs[det]^(1/4);
-  (*enforce abelian row purely imaginary*)
-  Pnew[[1,All]]= Re[Pnew[[1,All]]];
-  (*optional:keep non-abelian rows real*)
-  (*Pnew[[2;;4,All]]=Re[Pnew[[2;;4,All]]];*)
-  <|"P"->Developer`ToPackedArray[Pnew],"\[CapitalOmega]"->Om,"h"->h|>
+dfMatrixByDeltaP[P_, dP_] := Module[{Amats = Aeta},
+  Table[
+    1/2 Sum[
+      LeviCivitaTensor[3][[i, j, k]] *
+        ( dP[[j, ;;]] . Amats[[a]] . P[[;;, k]] + 
+          P[[j, ;;]] . Amats[[a]] . dP[[;;, k]] ),
+      {j, 1, 3}, {k, 1, 3}
+    ],
+    {i, 1, 3}, {a, 1, 3}
+  ]
 ];
 
-(*-----invariants (same API)-----*)
-SafeSqrtSym[X_,tol_:$SQGTol]:=
-Module[{S=Symmetrize[X],vals,vecs,vclip},
-{vals,vecs}=Eigensystem[S];
-(* Print["x_vals=",vals]; *)
-vclip=vals/. x_/;x<0&&Abs[x]<tol->0.;
-vecs . DiagonalMatrix[Sqrt[Clip[vclip,{0,\[Infinity]}]]] . Transpose[vecs]];
+(* ======================================================= *)
+(* 3. Stable Xi(P,\[CapitalOmega],H) via clipped eigen-inverse           *)
+(* ======================================================= *)
+Clear[XiFromOmegaHClip];
+XiFromOmegaHClip[P_, \[CapitalOmega]_, H_, clip_:1.*^-12] := Module[
+  {S, rhs, vals, vecs, \[Lambda]max, inv\[Lambda], invS},
+  S   = Transpose[P] . P;
+  rhs = Skew[Transpose[P] . \[CapitalOmega] . P] + H;
+  {vals, vecs} = Eigensystem[S];
+  \[Lambda]max = Max[Abs[vals]];
+  inv\[Lambda] = If[# < clip*\[Lambda]max, 0., 1./#] & /@ vals;
+  invS = vecs . DiagonalMatrix[inv\[Lambda]] . Transpose[vecs];
+  - invS . rhs
+];
 
-XfromP[P_]:=Module[{F=Fhat[P],X=ConstantArray[0.,{3,3}]},
-Do[
-X[[j,i]]=X[[i,j]]= -1/2Tr[F[[i]] . F[[j]]],
-{i,1,3},{j,i,3}];
-Developer`ToPackedArray[X]];
+(* ======================================================= *)
+(* 4. Duality constraints (18) + extra 4 rows              *)
+(* ======================================================= *)
+Clear[DualityRowsForDeltaP, ExtraRowsFromOmega];
 
-CosmoInvariants[P_,z_?NumericQ,s_:+1]:=
-Module[{X,Y,trY,R,W},X=XfromP[P];
-Y=SafeSqrtSym[X];
-trY=Tr[Y];
-R=4.*s*trY;W=z*R;
-<|"trY"->trY,"R"->R,"W"->W|>];
+DualityRowsForDeltaP[P_, dP_] := Module[{Amats = Aeta, rows1, rows2},
+  rows1 = Flatten @ Table[
+    Sum[LeviCivitaTensor[3][[i, j, k]] * ( P[[j, ;;]] . Amats[[a]] . dP[[;;, k]] ),
+      {j, 1, 3}, {k, 1, 3}],
+    {a, 1, 3}, {i, 1, 3}
+  ];
+  rows2 = Flatten @ Table[
+    Sum[LeviCivitaTensor[3][[i, j, k]] * ( dP[[j, ;;]] . Amats[[a]] . P[[;;, k]] ),
+      {j, 1, 3}, {k, 1, 3}],
+    {a, 1, 3}, {i, 1, 3}
+  ];
+  Join[rows1, rows2]
+];
 
-RfromP[P_,z_,s_:+1]:=CosmoInvariants[P,z,s]["R"];
-WfromP[P_,z_,s_:+1]:=CosmoInvariants[P,z,s]["W"];
+ExtraRowsFromOmega[\[CapitalOmega]_] := Join[{Tr[\[CapitalOmega]]},
+  {\[CapitalOmega][[2,3]]-\[CapitalOmega][[3,2]], \[CapitalOmega][[2,4]]-\[CapitalOmega][[4,2]], \[CapitalOmega][[3,4]]-\[CapitalOmega][[4,3]]}];
+
+(* ======================================================= *)
+(* 5. Parameterization (26 = 16 \[CapitalOmega] + 10 H)                  *)
+(* ======================================================= *)
+Clear[upperPairs, unvecOmega, unpackH, ParamToOmegaH];
+upperPairs = {{1,1},{1,2},{1,3},{1,4},{2,2},{2,3},{2,4},{3,3},{3,4},{4,4}};
+
+unvecOmega[\[Omega]_List] /; Length[\[Omega]]==16 := Partition[\[Omega], 4];
+
+unpackH[h_List] /; Length[h]==10 := Module[{H = ConstantArray[0., {4, 4}]},
+  Do[
+    With[{\[Mu] = upperPairs[[k, 1]], \[Nu] = upperPairs[[k, 2]]},
+      H[[\[Mu], \[Nu]]] = h[[k]]; H[[\[Nu], \[Mu]]] = h[[k]];
+    ], {k, 10}];
+  H
+];
+
+ParamToOmegaH[g_List] /; Length[g]==26 := Module[{\[Omega] = Take[g, 16], h = Take[g, -10]},
+  {unvecOmega[\[Omega]], unpackH[h]}
+];
+
+(* ======================================================= *)
+(* 6. Build E(P)                                           *)
+(* ======================================================= *)
+Clear[DeltaPFromParam, BuildEParam];
+
+DeltaPFromParam[P_, j_Integer, clip_:1.*^-12] := Module[{g = ConstantArray[0., 26], \[CapitalOmega], H},
+  g[[j]] = 1.;
+  {\[CapitalOmega], H} = ParamToOmegaH[g];
+  \[CapitalOmega] . P - P . XiFromOmegaHClip[P, \[CapitalOmega], H, clip]
+];
+
+BuildEParam[P_, clip_:1.*^-12] := Module[{cols},
+  cols = Table[
+    Module[{dP = DeltaPFromParam[P, j, clip], \[CapitalOmega], H, base, extra},
+      {\[CapitalOmega], H} = ParamToOmegaH[UnitVector[26, j]];
+      base  = DualityRowsForDeltaP[P, dP];
+      extra = ExtraRowsFromOmega[\[CapitalOmega]];
+      Join[base, extra]
+    ], {j, 26}];
+  Transpose @ Developer`ToPackedArray @ cols
+];
+
+(* ======================================================= *)
+(* 7. Nullspace report                                     *)
+(* ======================================================= *)
+Clear[NullspaceReport];
+NullspaceReport[P_, tol_:1.*^-10, clip_:1.*^-12] := Module[
+  {E = BuildEParam[P, clip], U, S, V, s, eps, zidx},
+  {U, S, V} = SingularValueDecomposition[N @ E];
+  s   = Diagonal[S]; eps = tol * Max[Join[s, {0.}]];
+  zidx = Flatten @ Position[s, _?(# <= eps &)];
+  <|"E"->E, "singulars"->s, "tol"->eps, "Z"->Length[zidx], "Vnull"->V[[All, zidx]]|>
+];
+
+(* ======================================================= *)
+(* 8. R(P) and dR(P;\[Delta]P)                                    *)
+(* ======================================================= *)
+Clear[RofP, dRLinear];
+RofP[P_] := 4 * Total @ SingularValueList[N @ fMatrix[P]];
+
+dRLinear[P_, dP_] := Module[{f = fMatrix[P], df = dfMatrixByDeltaP[P, dP], U, S, V, Rpol},
+  {U, S, V} = SingularValueDecomposition[N @ f];
+  Rpol = U . Transpose[V];  (* (ff^T)^(-1/2) f *)
+  8 * Tr[Rpol . Transpose[df]]
+];
+
+(* ======================================================= *)
+(* 9. OneStep                                              *)
+(* ======================================================= *)
+Clear[OneStep];
+OneStep[P_, G_, tol_:1.*^-10, clip_:1.*^-12] := Module[
+  {rep, Vz, Z, len, Gadj, g, \[CapitalOmega], H, Xi, dP, Pnew, Rnew, dR},
+  rep = NullspaceReport[P, tol, clip];
+  If[rep["Z"] == 0, Return[{P, Missing["NoNull"], Missing["NoNull"]}]];
+  Vz  = rep["Vnull"];  Z = Dimensions[Vz][[2]];  len = Length[G];
+  Gadj = If[len === Z, G,
+            If[len > Z, Take[G, Z], Join[G, ConstantArray[0., Z - len]]]];
+  g     = Vz . Gadj;
+  {\[CapitalOmega], H} = ParamToOmegaH[g];
+  Xi    = XiFromOmegaHClip[P, \[CapitalOmega], H, clip];
+  dP    = \[CapitalOmega] . P - P . Xi;
+  Pnew  = P + dP;
+  Rnew  = RofP[Pnew];
+  dR    = dRLinear[P, dP];
+  {Pnew, Rnew, dR}
+];
+
+(* ======================================================= *)
+(* RDerivative[P,G]: analytic derivative along direction G *)
+(* ======================================================= *)
+
+Clear[RDerivative];
+RDerivative[P_, G_, tol_:1.*^-10, clip_:1.*^-12] := Module[
+  {rep, Vz, Z, len, Gadj, g, \[CapitalOmega], H, Xi, dP, dR},
+  rep = NullspaceReport[P, tol, clip];
+  If[rep["Z"] == 0, Return[Missing["NoNull"]]];
+  Vz  = rep["Vnull"];  Z = Dimensions[Vz][[2]];  len = Length[G];
+  Gadj = If[len === Z, G,
+            If[len > Z, Take[G, Z], Join[G, ConstantArray[0., Z - len]]]];
+  g     = Vz . Gadj;
+  {\[CapitalOmega], H} = ParamToOmegaH[g];
+  Xi    = XiFromOmegaHClip[P, \[CapitalOmega], H, clip];
+  dP    = \[CapitalOmega] . P - P . Xi;
+  dR    = dRLinear[P, dP];
+  dR
+];
+
+
+Dimensions[EtaMixed]
+
+
+
+z = 1.;
+P0 = SeedFromZ[z];
+
+
+(* 1. Is P0 numeric? *)
+MatrixQ[P0, NumericQ]
+
+
+(* 2. Check XiFromOmegaHClip directly on P0 with a simple \[CapitalOmega],H *)
+\[CapitalOmega]test = ConstantArray[0., {4,4}]; Htest = ConstantArray[0., {4,4}];
+XiFromOmegaHClip[P0, \[CapitalOmega]test, Htest] // MatrixForm
+
+
+(* 3. BuildEParam should give a 22\[Times]26 numeric matrix *)
+E = BuildEParam[P0];
+Dimensions[E]
+MatrixQ[E, NumericQ]
+
+
+(* 4. SingularValueDecomposition directly *)
+SingularValueDecomposition[E][[2]] // Diagonal
+
+
+
+z = 1.;
+P0 = SeedFromZ[z];
+rep = NullspaceReport[P0, 1.*^-10];
+{rep["Z"], rep["singulars"]}
+
+
+Z   = rep["Z"];
+G   = 10^-6 * Table[(-1)^k, {k, Z}];
+
+{P1, R1, dR} = OneStep[P0, G];
+{Det[P0] // N, Det[P1] // N, RofP[P0], R1, dR}
 
 
 
@@ -279,7 +264,7 @@ If[!ValueQ[$SQGZ0],  $SQGZ0  = 1.0];
 
 (* Gaussian Fourier profile generator (vector of length M). *)
 Clear[MakeUProfile];
-MakeUProfile[M_: 6, K_: 12, sigma_: 0.15, seed_: Automatic] :=
+MakeUProfile[M_: 3, K_: 12, sigma_: 0.15, seed_: Automatic] :=
   BlockRandom[
     Module[{a, b, xi},
       a  = RandomVariate[NormalDistribution[0, sigma], {M, K}];
@@ -318,15 +303,15 @@ SampleWTrajectory[
     P  = SeedFromZ[z];
 
     For[k = 1, k <= nSteps, k++,
-      f\[Theta]  = fFun[\[Theta]s[[k]]];
-      sol = StepSDE20[P, f\[Theta], d\[Theta], stabEvery, k, tol];
-      P   = sol["P"];
-
+      f\[Theta]  = d\[Theta]*fFun[\[Theta]s[[k]]];
+      {P,R} = OneStep[P,f\[Theta]];
+      Print["k=",k,"R=,",R];
+      (*P = RK4StepCovariant[P, \[Theta]s[[k]], fFun, d\[Theta]];*)
       If[Mod[nSteps - k, stride] == 0,
-        R = RfromP[P, z, s];
         AppendTo[buffer, R];
         If[Length[buffer] >= chunk,
           AppendTo[output, buffer];
+          SQGPrint["mean R , err =",Mean[buffer], StandardDeviation[buffer]]; 
           buffer = {};
         ];
       ];
@@ -404,13 +389,13 @@ remoteSpec = RemoteKernel[
 ];
 
 Clear[NewRunDir];
-NewRunDir[] := FileNameJoin[{Directory[], "SQG_runs"}];
+NewRunDir[n_] := FileNameJoin[{Directory[], "SQG_runs_"<>ToString[n]}];
 
 Clear[RunNewSimulation];
 RunNewSimulation[
-    z_?NumericQ,
+    n_?IntegerQ,
     nSteps_Integer: 512,
-    M_Integer: 6,
+    M_Integer: 3,
     K_Integer: 12,
     sigma_: 0.15,
     s_: 1,
@@ -418,14 +403,15 @@ RunNewSimulation[
     thinStride_: 10,
     tol_: $SQGTol,
     nCycles_Integer: 10^4
-  ] := Module[{useeds, rundir, params, paramsFile, rThinFile, chunkLists, data},
+  ] := Module[{useeds, rundir, params, paramsFile, rThinFile, chunkLists, data, fhThin, totalSamples = 0},
 
-  rundir = NewRunDir[];
+  rundir = NewRunDir[n];
+  z = 2.^(-n);
   If[!DirectoryQ[rundir], CreateDirectory[rundir]];
-  SQGPrint["Run dir: ", rundir];
+  Print["Run dir: ", rundir];
 
   params = <|
-    "z" -> z,
+    "n" -> n,
     "nSteps" -> nSteps,
     "M" -> M,
     "K" -> K,
@@ -443,8 +429,8 @@ RunNewSimulation[
 
   rThinFile = FileNameJoin[{rundir, "rthin.bin"}];
   If[FileExistsQ[rThinFile], DeleteFile[rThinFile]];
-
-  useeds = Table[j * ($KernelCount*10) + i, {j, nCycles}, {i, $KernelCount}];
+  numSeeds = $KernelCount;
+  useeds = Table[j * ($KernelCount*10) + i, {j, nCycles}, {i, numSeeds}];
 
   DistributeDefinitions[MakeUProfile, SampleWTrajectory, nCycles];
   SQGPrint["[master] Ensuring remote kernel availability..."];
@@ -453,16 +439,19 @@ RunNewSimulation[
   SQGPrint["Processing on ", $KernelCount, " kernels, seeds with thinStride=", thinStride,
     ", nCycles=", nCycles];
 
+  fhThin = OpenAppend[rThinFile, BinaryFormat -> True];
+  If[fhThin === $Failed,
+    SQGPrint["Error: unable to open ", rThinFile, " for appending."];
+    Return[$Failed];
+  ];
+
   Map[(
       chunkLists =     
         ParallelMap[
           Function[seed,
             Module[{f, samples},
               f = MakeUProfile[M, K, sigma, seed];
-              samples = SampleWTrajectory[z, f, s, nSteps, stabEvery, tol, thinStride, nCycles];
-              SQGPrint["[Kernel ", $KernelID, " @ ", $MachineName, "] completed seed ", seed,
-                " with ", Length[samples], " samples."];
-              samples
+              SampleWTrajectory[z, f, s, nSteps, stabEvery, tol, thinStride, nCycles]
             ]
           ],
           #,
@@ -471,17 +460,18 @@ RunNewSimulation[
 
       (* Save chunk lists *)
       data = Developer`ToPackedArray @ N @ Flatten[chunkLists];
-      SQGPrint["[master] writing ", Length[data], " samples to ", rThinFile];
       If[Length[data] > 0,
-        Module[{fh = OpenWrite[rThinFile, BinaryFormat -> True]},
-          BinaryWrite[fh, data, "Real64"];
-          Close[fh];
-        ]
+        BinaryWrite[fhThin, data, "Real64"];
+        Flush[fhThin];
+        totalSamples += Length[data];
+        Print["[master] appended ", Length[data], " samples (total ", totalSamples,"; ", Mean[data],"+/-", StandardDeviation[data]," to ", rThinFile];
       ];
 
       )&, 
     useeds
   ];
+
+  Close[fhThin];
 
   Export[FileNameJoin[{rundir, "date_end.txt"}], Now];
   SQGPrint["Finished run ", rundir];
@@ -490,10 +480,36 @@ RunNewSimulation[
 
 
 
-(* Demo run parameters (adjust as needed). *)
-On[Assert];
-(*Plus@@ParallelTable[i,{i,24}]*)
-RunNewSimulation[1., 1024, 6, 12, 1.1, 1, 1, 10, $SQGTol, 128];
+(* 0) Clean slate on master *)
+$HistoryLength = 0;
+ClearAll[$LRCache, BuildSymbolicLR, StageParamJacobian,
+  NullspaceParam, UnpackParamStep, DeltaXiFrom, RK4StepCovariant,
+  Sproj4, Sgram, Skew, P2x2FromColumn, dP2x2FromColumn];
+
+(* 1) (Re)define pauli, BarEtaMixed, helpers, and all functions *)
+(* ... your definitions here ... *)
+
+(* 2) Build the symbolic Grad cache ON MASTER only *)
+BuildSymbolicLR[];
+
+(* 3) Ensure kernels are up *)
+If[$KernelCount == 0, LaunchKernels[]];
+
+(* 4) Distribute ONLY function definitions & small symbols *)
+DistributeDefinitions[
+  pauli, BarEtaMixed,
+  Skew, Sgram, Sproj4,
+  P2x2FromColumn, dP2x2FromColumn,
+  BuildSymbolicLR, StageParamJacobian, NullspaceParam,
+  UnpackParamStep, DeltaXiFrom, RK4StepCovariant
+];
+
+(* 5) Build the cache on each worker (DON\[CloseCurlyQuote]T ship $LRCache) *)
+ParallelEvaluate[BuildSymbolicLR[]];
+
+(* 6) Now run your parallel simulation *)
+Do[RunNewSimulation[n, 2048, 3, 64, 0.25, 1, 1, 10, $SQGTol, 128], {n, 0, 1}];
+
 
 
 

@@ -68,5 +68,35 @@
         "${workspaceFolder}/scripts/SQG_all.wl"
       ]
     }
+    {
+      "label": "Run INITPQ",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/scripts/InitPQ.wl"
+      ]
+    }
+     {
+      "label": "Run DiscSteps",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/scripts/DiscreteSteps.wl"
+      ]
+    }
+    {
+      "label": "Run FitGammas",
+      "type": "shell",
+      "command": "/usr/bin/env",
+      "args": [
+        "wolframscript",
+        "-file",
+        "${workspaceFolder}/scripts/FitGammas.wl"
+      ]
+    }
   ]
 }
